@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>YourVPN — ваш ключ</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    /* Fallback palette (used when opened outside Telegram, e.g. for preview).
+       Inside Telegram these are overridden by applyTelegramTheme() below,
+       so the app always matches the user's actual Telegram theme. */
+    --tg-bg: #08090f;
+    --tg-secondary-bg: #12131f;
+    --tg-text: #f3f4f8;
+    --tg-hint: #8b8fa3;
+    --tg-link: #5eb2ff;
+    --tg-button: #3b82f6;
+    --tg-button-text: #ffffff;
+    --accent-a: #3b82f6;
+    --accent-b: #8b5cf6;
+    --card: rgba(255,255,255,0.06);
+    --border: rgba(255,255,255,0.10);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
+    background:var(--tg-bg); color:var(--tg-text);
+    padding-bottom:140px; /* fixed, generous space for the sticky pay button — deliberately oversized */
+    position:relative;
+  }
+
+  /* ---------- Slow ambient background shimmer ----------
+     Subtle, low-contrast, very slow (24s) so it reads as "alive" without
+     ever drawing attention away from the content on top of it. */
+  .bg-shimmer{
+    position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none;
+  }
+  .bg-shimmer::before, .bg-shimmer::after{
+    content:''; position:absolute; border-radius:50%; filter:blur(130px);
+    will-change:transform, opacity;
+  }
+  .bg-shimmer::before{
+    width:70vw; height:70vw; top:-25vw; left:-20vw;
+    background:radial-gradient(circle, var(--accent-a) 0%, var(--accent-a) 25%, transparent 68%);
+    opacity:0; animation:shimmerA 24s ease-in-out infinite;
+  }
+  .bg-shimmer::after{
+    width:60vw; height:60vw; bottom:-20vw; right:-18vw;
+    background:radial-gradient(circle, var(--accent-b) 0%, var(--accent-b) 25%, transparent 68%);
+    opacity:0; animation:shimmerB 28s ease-in-out infinite;
+    animation-delay:4s;
+  }
+  @keyframes shimmerA{
+    0%{ transform:translate(0,0) scale(1); opacity:0; }
+    35%{ opacity:.16; }
+    50%{ transform:translate(6vw,8vw) scale(1.1); opacity:.16; }
+    65%{ opacity:.16; }
+    100%{ transform:translate(0,0) scale(1); opacity:0; }
+  }
+  @keyframes shimmerB{
+    0%{ transform:translate(0,0) scale(1); opacity:0; }
+    35%{ opacity:.13; }
+    50%{ transform:translate(-5vw,-6vw) scale(1.08); opacity:.13; }
+    65%{ opacity:.13; }
+    100%{ transform:translate(0,0) scale(1); opacity:0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .bg-shimmer::before, .bg-shimmer::after{ animation:none; opacity:.1; }
+  }
+
+  .wrap{ max-width:480px; margin:0 auto; padding:22px 18px 10px; position:relative; z-index:1; }
+
+  /* ---------- Hero ---------- */
+  .hero{ text-align:center; padding:18px 0 26px; }
+  .hero-icon{
+    width:60px; height:60px; margin:0 auto 14px; border-radius:18px;
+    background:linear-gradient(135deg, var(--accent-a), var(--accent-b));
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 10px 26px rgba(59,130,246,0.35);
+  }
+  .hero-icon svg{ width:30px; height:30px; }
+  .hero h1{ font-size:20px; font-weight:800; letter-spacing:-0.01em; margin-bottom:6px; }
+  .hero p{ font-size:13.5px; color:var(--tg-hint); line-height:1.5; }
+
+  /* ---------- Key card ---------- */
+  .key-card{
+    background:var(--card); border:1px solid var(--border); border-radius:22px;
+    padding:20px; margin-bottom:16px; backdrop-filter:blur(20px);
+  }
+  .key-label{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .key-label span:first-child{ font-size:12px; font-weight:700; color:var(--tg-hint); text-transform:uppercase; letter-spacing:0.04em; }
+  .key-status{ display:flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:#4ade80; }
+  .key-status i{ width:6px; height:6px; border-radius:50%; background:#4ade80; box-shadow:0 0 6px #4ade80; }
+
+  .key-value-box{
+    display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.25);
+    border-radius:14px; padding:12px 14px; margin-bottom:14px;
+    position:relative;
+  }
+  .key-value{
+    flex:1; font-family:'SF Mono', Menlo, Consolas, monospace; font-size:12px; color:var(--tg-text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    transition:filter .4s ease;
+  }
+  /* ---------- Заблокированный ключ (до оплаты) ----------
+     Текст ключа физически размыт (не просто скрыт CSS-visibility) —
+     так его нельзя достать даже через "показать исходный код страницы"
+     до того, как backend реально отдаст настоящий ключ после оплаты. */
+  .key-card.locked .key-value{
+    filter:blur(6px);
+    user-select:none;
+  }
+  .key-card.locked .copy-btn{
+    opacity:.35; pointer-events:none;
+  }
+  .key-lock-overlay{
+    display:none; align-items:center; justify-content:center; gap:8px;
+    position:absolute; inset:0; border-radius:14px;
+    background:rgba(10,10,16,0.55); backdrop-filter:blur(2px);
+    font-size:11.5px; font-weight:700; color:#fff; text-align:center; padding:0 16px;
+    cursor:pointer;
+  }
+  .key-card.locked .key-lock-overlay{ display:flex; }
+  .key-lock-overlay svg{ width:15px; height:15px; flex-shrink:0; }
+  .copy-btn{
+    flex-shrink:0; width:34px; height:34px; border-radius:10px; border:none; cursor:pointer;
+    background:linear-gradient(135deg, var(--accent-a), var(--accent-b));
+    display:flex; align-items:center; justify-content:center; transition:transform .4s cubic-bezier(.22,.61,.36,1);
+  }
+  .copy-btn:active{ transform:scale(0.88); }
+  .copy-btn svg{ width:16px; height:16px; stroke:#fff; }
+
+  .key-actions{ display:flex; gap:10px; }
+  .ghost-btn{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
+    padding:11px; border-radius:12px; border:1px solid var(--border); background:transparent;
+    color:var(--tg-text); font-size:12.5px; font-weight:600; cursor:pointer;
+    transition:background .4s ease, transform .4s cubic-bezier(.22,.61,.36,1);
+  }
+  .ghost-btn:active{ background:rgba(255,255,255,0.08); transform:scale(0.97); }
+
+  /* ---------- QR ---------- */
+  .qr-wrap{ display:none; flex-direction:column; align-items:center; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); }
+  .qr-wrap.open{ display:flex; }
+  .qr-wrap img{ width:170px; height:170px; border-radius:12px; background:#fff; padding:8px; }
+  .qr-hint{ font-size:11px; color:var(--tg-hint); margin-top:8px; text-align:center; }
+
+  /* ---------- Steps ---------- */
+  .section-title{ font-size:14px; font-weight:700; margin:22px 2px 12px; }
+  .step{
+    display:flex; gap:12px; align-items:flex-start; padding:14px; border-radius:16px;
+    background:var(--card); border:1px solid var(--border); margin-bottom:10px;
+  }
+  .step-num{
+    flex-shrink:0; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:800; color:#fff; background:linear-gradient(135deg, var(--accent-a), var(--accent-b));
+  }
+  .step-text b{ display:block; font-size:13.5px; margin-bottom:2px; }
+  .step-text span{ font-size:12px; color:var(--tg-hint); line-height:1.5; }
+  .store-links{ display:flex; gap:8px; margin-top:8px; }
+  .store-links a{
+    font-size:11px; font-weight:600; padding:6px 11px; border-radius:9px;
+    background:rgba(255,255,255,0.07); color:var(--tg-text); text-decoration:none;
+  }
+
+  /* ---------- Trust strip ---------- */
+  .trust-strip{ display:flex; flex-wrap:wrap; gap:8px; margin:20px 0 6px; }
+
+  /* ---------- "ВАШ КЛЮЧ!" heading ---------- */
+  .key-heading{
+    font-size:13px; font-weight:800; letter-spacing:.06em; text-align:center;
+    color:var(--accent-a); margin-bottom:10px; text-transform:uppercase;
+  }
+
+  /* ---------- Status widget: days-left ring + subscription info ---------- */
+  .status-widget{
+    background:var(--card); border:1px solid var(--border); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    border-radius:22px; padding:20px; margin:18px 0 8px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.18);
+  }
+  .status-top{ display:flex; align-items:center; gap:16px; }
+
+  .days-ring{ position:relative; width:86px; height:86px; flex-shrink:0; }
+  .days-ring svg{ width:100%; height:100%; transform:rotate(-90deg); overflow:visible; }
+  .days-ring-bg{ fill:none; stroke:rgba(255,255,255,0.08); stroke-width:8; }
+  .days-ring-progress{
+    fill:none; stroke:url(#daysRingGradient); stroke-width:8; stroke-linecap:round;
+    transition:stroke-dashoffset .6s cubic-bezier(.22,.61,.36,1);
+  }
+  .days-ring-label{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .days-ring-label b{ font-size:22px; font-weight:800; line-height:1; }
+  .days-ring-label span{ font-size:9px; color:var(--tg-hint); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
+
+  .status-info{ flex:1; min-width:0; }
+  .status-pill-active{
+    display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#4ade80;
+    background:rgba(74,222,128,0.12); padding:5px 10px; border-radius:10px; margin-bottom:9px;
+  }
+  .status-pill-active i{ width:6px; height:6px; border-radius:50%; background:#4ade80; box-shadow:0 0 6px #4ade80; }
+  .status-line{ font-size:12.5px; color:var(--tg-hint); margin-bottom:3px; }
+  .status-line b{ color:var(--tg-text); font-weight:600; }
+  .status-devices{ font-size:11.5px; color:var(--tg-hint); margin-top:7px; }
+
+  /* ---------- Overview: balance + devices ---------- */
+  .overview-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:6px; }
+  .overview-card{
+    background:var(--card); border:1px solid var(--border); backdrop-filter:blur(20px);
+    border-radius:18px; padding:16px;
+  }
+  .overview-label{ font-size:10px; font-weight:700; color:var(--tg-hint); text-transform:uppercase; letter-spacing:.05em; margin-bottom:9px; }
+  .overview-value{ font-size:23px; font-weight:800; margin-bottom:12px; }
+  .overview-unit{ font-size:13px; font-weight:600; color:var(--tg-hint); }
+  .overview-action{
+    width:100%; padding:8px; border:none; border-radius:10px; font-size:12px; font-weight:700; color:#fff;
+    background:linear-gradient(135deg,var(--accent-a),var(--accent-b)); cursor:pointer;
+    transition:transform .35s cubic-bezier(.22,.61,.36,1);
+  }
+  .overview-action:active{ transform:scale(0.95); }
+  .devices-bar{ height:6px; border-radius:3px; background:rgba(255,255,255,0.08); overflow:hidden; }
+  .devices-bar span{ display:block; height:100%; border-radius:3px; background:linear-gradient(90deg,var(--accent-a),var(--accent-b)); transition:width .5s ease; }
+
+  /* ---------- Prominent "Как подключиться" button — scrolls to the
+     instructions at the very bottom. Deliberately eye-catching (red glow
+     outline) since it replaces what used to be inline text right here. ---------- */
+  .connect-cta{
+    width:100%; display:flex; align-items:center; justify-content:center; gap:9px;
+    padding:14px; margin:18px 0 4px; border-radius:16px; cursor:pointer;
+    background:rgba(239,68,68,0.08); border:1.5px solid #ef4444; color:#fff;
+    font-size:14.5px; font-weight:700;
+    box-shadow:0 0 0 0 rgba(239,68,68,0.4);
+    animation:connectCtaPulse 2.6s ease-in-out infinite;
+    transition:transform .35s cubic-bezier(.22,.61,.36,1);
+  }
+  .connect-cta:active{ transform:scale(0.97); }
+  @keyframes connectCtaPulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,0.35); }
+    50%{ box-shadow:0 0 0 8px rgba(239,68,68,0); }
+  }
+  @media (prefers-reduced-motion: reduce){ .connect-cta{ animation:none; } }
+
+  .trust-item{
+    font-size:10.5px; font-weight:600; color:var(--tg-hint); padding:6px 11px;
+    border-radius:10px; background:var(--card); border:1px solid var(--border);
+  }
+
+  .fallback-note{
+    font-size:10.5px; color:var(--tg-hint); text-align:center; margin-top:18px; margin-bottom:20px; opacity:.6;
+  }
+
+  /* Custom fallback bottom button, shown only when NOT running inside Telegram
+     (Telegram's native MainButton is used instead when available — see JS) */
+  .fallback-btn{
+    display:none; position:fixed; left:16px; right:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); z-index:50;
+    padding:15px; border:none; border-radius:16px; font-size:15px; font-weight:700; color:#fff;
+    background:linear-gradient(135deg, var(--accent-a), var(--accent-b)); cursor:pointer;
+    box-shadow:0 12px 28px rgba(59,130,246,0.35);
+    transition:transform .35s cubic-bezier(.22,.61,.36,1), box-shadow .35s ease;
+  }
+  .fallback-btn.show{ display:block; }
+  .fallback-btn:active{ transform:scale(0.96); box-shadow:0 6px 16px rgba(59,130,246,0.25); }
+
+  .toast{
+    position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(10px);
+    background:rgba(20,20,25,0.95); color:#fff; padding:10px 18px; border-radius:12px;
+    font-size:12.5px; font-weight:600; opacity:0; pointer-events:none; transition:all .3s ease; z-index:60;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---------- Pricing plans ---------- */
+  .plan-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:6px; }
+  .plan{
+    position:relative; display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px; border-radius:16px; background:var(--card); border:1.5px solid var(--border); cursor:pointer;
+    transition:border-color .4s ease, transform .4s cubic-bezier(.22,.61,.36,1), background .4s ease;
+  }
+  .plan:active{ transform:scale(0.98); background:rgba(255,255,255,0.08); }
+  .plan.selected{ border-color:var(--accent-a); }
+  .plan-badge{
+    position:absolute; top:-9px; left:14px; font-size:9.5px; font-weight:700; color:#fff;
+    padding:3px 9px; border-radius:8px; background:linear-gradient(135deg, var(--accent-a), var(--accent-b));
+  }
+  .plan-badge.alt{ background:linear-gradient(135deg,#f59e0b,#ef4444); }
+  .plan-name{ font-size:13.5px; font-weight:700; }
+  .plan-note{ font-size:11px; color:var(--tg-hint); margin-top:2px; }
+  .plan-price{ font-size:16px; font-weight:800; text-align:right; }
+  .plan-price span{ display:block; font-size:10px; font-weight:500; color:var(--tg-hint); }
+  .plan-radio{
+    width:18px; height:18px; border-radius:50%; border:2px solid var(--border); margin-left:12px; flex-shrink:0; position:relative;
+    transition:border-color .4s ease;
+  }
+  .plan.selected .plan-radio{ border-color:var(--accent-a); }
+  .plan.selected .plan-radio::after{ content:''; position:absolute; inset:2.5px; border-radius:50%; background:var(--accent-a); animation:radioPop .4s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes radioPop{ 0%{ transform:scale(0); } 100%{ transform:scale(1); } }
+  .plan-row{ display:flex; align-items:center; }
+
+  /* ---------- Payment method selector ---------- */
+  .method-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+  .method{
+    display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:14px;
+    background:var(--card); border:1.5px solid var(--border); cursor:pointer;
+    transition:border-color .4s ease, transform .4s cubic-bezier(.22,.61,.36,1), background .4s ease;
+  }
+  .method:active{ transform:scale(0.98); background:rgba(255,255,255,0.08); }
+  .method.selected{ border-color:var(--accent-a); }
+  .method-icon{ width:34px; height:34px; border-radius:10px; background:rgba(59,130,246,0.12); display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+  .method-name{ font-size:13px; font-weight:700; }
+  .method-sub{ font-size:10.5px; color:var(--tg-hint); margin-top:1px; }
+  .method-radio{ width:17px; height:17px; border-radius:50%; border:2px solid var(--border); margin-left:auto; flex-shrink:0; position:relative; transition:border-color .4s ease; }
+  .method.selected .method-radio{ border-color:var(--accent-a); }
+  .method.selected .method-radio::after{ content:''; position:absolute; inset:2.5px; border-radius:50%; background:var(--accent-a); animation:radioPop .4s cubic-bezier(.34,1.56,.64,1); }
+
+  .pay-guarantee{ text-align:center; font-size:10.5px; color:var(--tg-hint); margin-bottom:4px; }
+
+  /* ---------- Payment processing overlay ---------- */
+  .pay-overlay{
+    position:fixed; inset:0; z-index:200; background:rgba(0,0,0,0.6); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .3s ease;
+  }
+  .pay-overlay.open{ opacity:1; pointer-events:auto; }
+  .pay-modal{
+    width:260px; padding:26px 22px; border-radius:22px; text-align:center;
+    background:var(--tg-secondary-bg); border:1px solid var(--border);
+    transform:scale(0.9); transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .pay-overlay.open .pay-modal{ transform:scale(1); }
+
+  /* ---------- Payment indicator: simple, bulletproof crossfade ----------
+     Complete rewrite. Previous versions shared one SVG shape between the
+     spinner and checkmark states (rotating arc -> morphing into a ring +
+     drawn checkmark). That required freezing live animation angles via JS
+     and hoping CSS transitions picked up cleanly from mid-animation values
+     — fragile, and it kept glitching.
+     This version uses two completely independent, always-present elements
+     (a spinning ring, a checkmark badge) that simply cross-fade via opacity
+     and scale. Both properties always have a real, static declared resting
+     value on both elements at all times — nothing is ever read from a live
+     animation or frozen via JavaScript. Opacity/scale transitions are the
+     single most reliable, glitch-free pattern in CSS; there is no shared
+     state between the two elements for them to conflict over. */
+  .pay-indicator{ width:56px; height:56px; margin:0 auto 16px; position:relative; }
+
+  .pay-spin-ring{
+    position:absolute; inset:0; border-radius:50%;
+    border:4px solid rgba(255,255,255,0.12); border-top-color:var(--accent-a);
+    opacity:0; transition:opacity .25s ease;
+  }
+  .pay-state-processing .pay-spin-ring{
+    opacity:1; animation:paySpinTurn .8s linear infinite;
+  }
+  @keyframes paySpinTurn{ to{ transform:rotate(360deg); } }
+
+  .pay-check-badge{
+    position:absolute; inset:0; border-radius:50%;
+    background:linear-gradient(135deg,#22c55e,#16a34a);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transform:scale(0.5);
+    transition:opacity .3s ease, transform .35s cubic-bezier(.34,1.56,.64,1);
+  }
+  .pay-check-badge svg{ width:26px; height:26px; }
+  .pay-state-success .pay-check-badge{ opacity:1; transform:scale(1); }
+  .pay-state-success .pay-spin-ring{ opacity:0; }
+
+  .pay-ripple{
+    position:absolute; inset:0; border-radius:50%; border:2px solid #22c55e;
+    opacity:0; transform:scale(0.7); pointer-events:none;
+  }
+  .pay-ripple.play{ animation:payRipple 600ms ease-out; }
+  @keyframes payRipple{
+    0%{ opacity:.5; transform:scale(0.7); }
+    100%{ opacity:0; transform:scale(1.6); }
+  }
+
+  .pay-state-qr .pay-indicator{ display:none; }
+
+  .pay-qr-box{ display:none; flex-direction:column; align-items:center; margin-bottom:12px; }
+  .pay-state-qr .pay-qr-box{ display:flex; }
+  .pay-qr-box img{ width:150px; height:150px; border-radius:10px; background:#fff; padding:6px; }
+  .pay-qr-addr{
+    margin-top:8px; font-family:'SF Mono',Menlo,monospace; font-size:9.5px; color:var(--tg-hint);
+    word-break:break-all; text-align:center; padding:0 4px;
+  }
+  .pay-modal-title{ font-size:14px; font-weight:700; margin-bottom:4px; }
+  .pay-modal-sub{ font-size:11.5px; color:var(--tg-hint); line-height:1.5; }
+  .pay-done-btn{ margin-top:14px; border:none; background:linear-gradient(135deg,var(--accent-a),var(--accent-b)); color:#fff; font-weight:700; font-size:12.5px; padding:9px 22px; border-radius:11px; display:none; cursor:pointer; }
+  .pay-state-success .pay-done-btn, .pay-state-qr .pay-done-btn{ display:inline-block; }
+  .pay-cancel{ display:block; margin:10px auto 0; background:none; border:none; color:var(--tg-hint); font-size:11px; font-weight:600; cursor:pointer; }
+
+  /* ---------- Referral ---------- */
+  .ref-card{
+    background:var(--card); border:1px solid var(--border); border-radius:20px; padding:18px; margin-bottom:16px;
+  }
+  .ref-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .ref-icon{ font-size:20px; }
+  .ref-title{ font-size:14px; font-weight:700; }
+  .ref-sub{ font-size:11.5px; color:var(--tg-hint); line-height:1.5; margin-bottom:14px; }
+  .ref-link-box{
+    display:flex; align-items:center; gap:8px; background:rgba(0,0,0,0.25); border-radius:12px; padding:10px 12px; margin-bottom:12px;
+  }
+  .ref-link-text{ flex:1; font-size:11px; font-family:'SF Mono',Menlo,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ref-copy-btn{ flex-shrink:0; width:30px; height:30px; border-radius:9px; border:none; background:linear-gradient(135deg,var(--accent-a),var(--accent-b)); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .4s cubic-bezier(.22,.61,.36,1); }
+  .ref-copy-btn:active{ transform:scale(0.88); }
+  .ref-copy-btn svg{ width:14px; height:14px; stroke:#fff; }
+  .ref-stats{ display:flex; gap:10px; }
+  .ref-stat{ flex:1; text-align:center; background:rgba(255,255,255,0.04); border-radius:12px; padding:10px; }
+  .ref-stat b{ display:block; font-size:17px; font-weight:800; }
+  .ref-stat span{ font-size:10px; color:var(--tg-hint); }
+
+  /* ---------- Support / Telegram channel ---------- */
+  .support-card{
+    background:var(--card); border:1px solid var(--border); backdrop-filter:blur(20px);
+    border-radius:20px; padding:6px; display:flex; flex-direction:column;
+  }
+  .support-row{
+    display:flex; align-items:center; gap:12px; padding:13px 12px;
+    border-bottom:1px solid var(--border);
+  }
+  .support-row-channel{ border-bottom:none; }
+  .support-icon{ font-size:20px; flex-shrink:0; }
+  .support-text{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .support-text b{ font-size:13px; font-weight:700; }
+  .support-text span{ font-size:11px; color:var(--tg-hint); line-height:1.4; }
+  .support-btn{
+    flex-shrink:0; padding:8px 14px; border-radius:11px; font-size:12px; font-weight:700;
+    color:#fff; background:linear-gradient(135deg,var(--accent-a),var(--accent-b)); text-decoration:none;
+    transition:transform .35s cubic-bezier(.22,.61,.36,1);
+  }
+  .support-btn:active{ transform:scale(0.94); }
+  .support-btn-ghost{
+    background:transparent; border:1px solid var(--border); color:var(--tg-text);
+  }
+</style>
+</head>
+<body>
+<div class="bg-shimmer"></div>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="hero-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6z"/></svg>
+    </div>
+    <h1>YourVPN</h1>
+  </div>
+
+  <div class="key-heading">ВАШ КЛЮЧ!</div>
+
+  <div class="key-card locked" id="keyCard">
+    <div class="key-label">
+      <span>Ваш ключ</span>
+      <span class="key-status" id="keyStatus"><i></i>Ожидает оплаты</span>
+    </div>
+    <div class="key-value-box">
+      <span class="key-value" id="keyValue">vless://demo-00000000-0000-0000-0000-000000000000@de.yourvpn.com:443?type=tcp&security=reality</span>
+      <button class="copy-btn" id="copyBtn" aria-label="Копировать">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      </button>
+      <div class="key-lock-overlay" id="keyLockOverlay" title="Ключ откроется после оплаты">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Ключ откроется после оплаты
+      </div>
+    </div>
+    <div class="key-actions">
+      <button class="ghost-btn" id="qrToggleBtn">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Показать QR
+      </button>
+    </div>
+    <div class="qr-wrap" id="qrWrap">
+      <img id="qrImage" src="" alt="QR-код ключа">
+      <div class="qr-hint">Отсканируйте QR в приложении AmneziaVPN на телефоне, или вставьте ключ вручную — на любом устройстве, включая компьютер</div>
+    </div>
+  </div>
+
+  <div class="status-widget">
+    <div class="status-top">
+      <div class="days-ring">
+        <svg viewBox="0 0 100 100">
+          <circle class="days-ring-bg" cx="50" cy="50" r="42"></circle>
+          <circle class="days-ring-progress" id="daysRingProgress" cx="50" cy="50" r="42"></circle>
+        </svg>
+        <div class="days-ring-label"><b id="daysLeftNum">18</b><span>дней</span></div>
+      </div>
+      <div class="status-info">
+        <div class="status-pill-active"><i></i>Подключение активно</div>
+        <div class="status-line">Подписка до <b id="subUntilDate">12 августа</b></div>
+        <div class="status-line">Тариф: <b id="subPlanName">3 месяца</b></div>
+        <div class="status-devices" id="devicesUsedText">2 из 3 устройств</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overview-grid">
+    <div class="overview-card">
+      <div class="overview-label">Баланс</div>
+      <div class="overview-value"><span id="balanceValue">180</span><span class="overview-unit"> ₽</span></div>
+      <button class="overview-action" id="topUpBtn">Пополнить</button>
+    </div>
+    <div class="overview-card">
+      <div class="overview-label">Устройства</div>
+      <div class="overview-value"><span id="devicesUsedNum">2</span><span class="overview-unit">/3</span></div>
+      <div class="devices-bar"><span id="devicesBarFill"></span></div>
+    </div>
+  </div>
+
+  <button class="connect-cta" id="connectCtaBtn">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    Как подключиться
+  </button>
+
+  <div class="ref-card" style="margin-top:22px;">
+    <div class="ref-head"><span class="ref-icon">🎁</span><span class="ref-title">Пригласите друзей</span></div>
+    <div class="ref-sub">Пригласите друзей и получите <b>50 ₽ на баланс</b> за каждого. Пригласите пару друзей — и сможете купить подписку на месяц.</div>
+    <div class="ref-link-box">
+      <span class="ref-link-text" id="refLink">https://t.me/yourvpnbot?start=ref_000000</span>
+      <button class="ref-copy-btn" id="refCopyBtn" aria-label="Копировать ссылку">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      </button>
+    </div>
+    <div class="ref-stats">
+      <div class="ref-stat"><b id="refCount">0</b><span>приглашено</span></div>
+      <div class="ref-stat"><b id="refBalance">0 ₽</b><span>на балансе</span></div>
+    </div>
+  </div>
+
+  <div class="support-card">
+    <div class="support-row">
+      <span class="support-icon">🆘</span>
+      <div class="support-text">
+        <b>Возникли проблемы?</b>
+        <span>Напишите в поддержку — ответим быстро.</span>
+      </div>
+      <a href="#" id="supportLink" class="support-btn">Написать</a>
+    </div>
+    <div class="support-row support-row-channel">
+      <span class="support-icon">📢</span>
+      <div class="support-text">
+        <b>Наша группа</b>
+        <span>Посетите нашу группу в Telegram, чтобы не пропустить новости и обновления.</span>
+      </div>
+      <a href="#" id="channelLink" class="support-btn support-btn-ghost">Перейти</a>
+    </div>
+  </div>
+
+
+  <div class="section-title">Тариф</div>
+  <div class="plan-list" id="planList">
+    <div class="plan selected" data-plan="1" data-price="100" onclick="selectPlan(this)">
+      <div>
+        <div class="plan-name">1 месяц</div>
+        <div class="plan-note">Без обязательств</div>
+      </div>
+      <div class="plan-row">
+        <div class="plan-price">100 ₽<span>100 ₽/мес</span></div>
+        <div class="plan-radio"></div>
+      </div>
+    </div>
+    <div class="plan" data-plan="3" data-price="250" onclick="selectPlan(this)">
+      <span class="plan-badge">Популярный</span>
+      <div>
+        <div class="plan-name">3 месяца</div>
+        <div class="plan-note">250 ₽ за весь период</div>
+      </div>
+      <div class="plan-row">
+        <div class="plan-price">250 ₽<span>≈83 ₽/мес</span></div>
+        <div class="plan-radio"></div>
+      </div>
+    </div>
+    <div class="plan" data-plan="6" data-price="500" onclick="selectPlan(this)">
+      <div>
+        <div class="plan-name">6 месяцев</div>
+        <div class="plan-note">500 ₽ за весь период</div>
+      </div>
+      <div class="plan-row">
+        <div class="plan-price">500 ₽<span>≈83 ₽/мес</span></div>
+        <div class="plan-radio"></div>
+      </div>
+    </div>
+    <div class="plan" data-plan="12" data-price="1099" onclick="selectPlan(this)">
+      <span class="plan-badge alt">12 месяцев</span>
+      <div>
+        <div class="plan-name">12 месяцев</div>
+        <div class="plan-note">1099 ₽ за год</div>
+      </div>
+      <div class="plan-row">
+        <div class="plan-price">1099 ₽<span>≈92 ₽/мес</span></div>
+        <div class="plan-radio"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Способ оплаты</div>
+  <div class="method-list" id="methodList">
+    <div class="method selected" data-method="card" onclick="selectMethod(this)">
+      <div class="method-icon">💳</div>
+      <div>
+        <div class="method-name">Банковская карта</div>
+        <div class="method-sub">МИР, Visa, Mastercard</div>
+      </div>
+      <div class="method-radio"></div>
+    </div>
+    <div class="method" data-method="sbp" onclick="selectMethod(this)">
+      <div class="method-icon">📱</div>
+      <div>
+        <div class="method-name">СБП (по QR)</div>
+        <div class="method-sub">Оплата через приложение банка</div>
+      </div>
+      <div class="method-radio"></div>
+    </div>
+    <div class="method" data-method="stars" onclick="selectMethod(this)">
+      <div class="method-icon">⭐</div>
+      <div>
+        <div class="method-name">Telegram Stars</div>
+        <div class="method-sub" id="starsMethodSub">≈65 ⭐ · оплата внутри Telegram</div>
+      </div>
+      <div class="method-radio"></div>
+    </div>
+  </div>
+
+  <div class="pay-guarantee">🛡 Оплата защищена. Отмена в любой момент.</div>
+
+  <div class="section-title" id="connectSteps">Как подключиться</div>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <b>Установите AmneziaVPN</b>
+      <span>Если приложения ещё нет на устройстве — скачайте его из официального магазина. Amnezia есть и для компьютера (Windows/macOS/Linux), не только для телефона.</span>
+      <div class="store-links">
+        <a href="#" id="happIosLink">App Store</a>
+        <a href="#" id="happAndroidLink">Google Play</a>
+        <a href="#" id="happDesktopLink">Для ПК</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <b>Скопируйте ключ выше</b>
+      <span>Нажмите на иконку копирования рядом с ключом — он сохранится в буфер обмена.</span>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <b>Вставьте ключ в AmneziaVPN</b>
+      <span>Откройте приложение → «Добавить конфигурацию» / «+» → вставьте ключ из буфера или отсканируйте QR — и сервер сразу появится в списке. Работает одинаково на телефоне и на компьютере.</span>
+    </div>
+  </div>
+
+  <div class="fallback-note">Ключ выдаётся персонально вашему Telegram-аккаунту</div>
+</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="daysRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- PAYMENT MODAL -->
+<div class="pay-overlay" id="payOverlay">
+  <div class="pay-modal" id="payModal">
+    <div class="pay-indicator">
+      <div class="pay-ripple"></div>
+      <div class="pay-spin-ring"></div>
+      <div class="pay-check-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 12.5 9.5 18 20 6.5"></path>
+        </svg>
+      </div>
+    </div>
+    <div class="pay-qr-box">
+      <img id="payQrImg" src="" alt="QR для оплаты">
+      <div class="pay-qr-addr" id="payQrAddr"></div>
+    </div>
+    <div class="pay-modal-title" id="payTitle">Обрабатываем оплату…</div>
+    <div class="pay-modal-sub" id="paySub">Не закрывайте приложение</div>
+    <button class="pay-done-btn" id="payDoneBtn" onclick="closePayment()">Готово</button>
+    <button class="pay-cancel" id="payCancelBtn" onclick="closePayment()">Отменить</button>
+  </div>
+</div>
+
+<button class="fallback-btn" id="fallbackBtn">Скопировать ключ</button>
+<div class="toast" id="toast">Ключ скопирован</div>
+
+
+<script>
+  // ============================================================
+  // Telegram Mini App integration
+  // ============================================================
+  const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+  function applyTelegramTheme() {
+    if (!tg) return;
+    tg.ready();
+    tg.expand();
+    const p = tg.themeParams || {};
+    const root = document.documentElement.style;
+    if (p.bg_color) root.setProperty('--tg-bg', p.bg_color);
+    if (p.secondary_bg_color) root.setProperty('--tg-secondary-bg', p.secondary_bg_color);
+    if (p.text_color) root.setProperty('--tg-text', p.text_color);
+    if (p.hint_color) root.setProperty('--tg-hint', p.hint_color);
+    if (p.link_color) root.setProperty('--tg-link', p.link_color);
+    if (p.button_color) root.setProperty('--tg-button', p.button_color);
+    if (p.button_text_color) root.setProperty('--tg-button-text', p.button_text_color);
+  }
+  applyTelegramTheme();
+  tg?.onEvent('themeChanged', applyTelegramTheme);
+
+  // ============================================================
+  // Реальный backend вместо мока. Отправляем tg.initData — backend сам
+  // проверяет подпись на своей стороне и знает, какой это Telegram-
+  // пользователь, ключ клиенту не доверяем генерировать самостоятельно.
+  //
+  //   POST https://startyi.online/api/miniapp/key  { initData }
+  //   -> { conf: "...", vpnUri: "vpn://...", country: "germany" }
+  //
+  // ВАЖНО: пока backend не проверяет, реально ли оплачена подписка у
+  // конкретного пользователя (это следующий шаг — привязать выдачу к
+  // платёжному webhook'у), поэтому ключ здесь физически блокируется на
+  // самой странице (см. lockKey/unlockKey ниже) — ключ запрашивается и
+  // разблокируется только после успешной оплаты в этом Mini App.
+  // ============================================================
+  const BACKEND_URL = 'https://startyi.online/api/miniapp/key';
+
+  async function fetchRealKey() {
+    try {
+      const res = await fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg?.initData || '', country: 'germany' }),
+      });
+      if (!res.ok) throw new Error('backend вернул ошибку: ' + res.status);
+      const data = await res.json();
+      return data.vpnUri;
+    } catch (err) {
+      console.error('Не удалось получить настоящий ключ:', err);
+      return null;
+    }
+  }
+
+  const keyCardEl = document.getElementById('keyCard');
+  const keyStatusEl = document.getElementById('keyStatus');
+  const keyValueEl = document.getElementById('keyValue');
+  const qrImage = document.getElementById('qrImage');
+
+  function renderKey(key) {
+    keyValueEl.textContent = key;
+    // Public QR image endpoint — a plain <img> request, degrades gracefully
+    // (just an alt-text box) if unreachable, unlike a failed module import.
+    qrImage.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=' + encodeURIComponent(key);
+  }
+
+  // Ключ визуально размыт и недоступен для копирования, пока не оплачено.
+  function lockKey() {
+    keyCardEl.classList.add('locked');
+    keyStatusEl.innerHTML = '<i></i>Ожидает оплаты';
+    keyStatusEl.style.color = 'var(--tg-hint)';
+    keyStatusEl.style.background = 'rgba(255,255,255,0.06)';
+  }
+
+  // Вызывается после успешной оплаты — запрашивает настоящий ключ у
+  // backend и открывает карточку.
+  async function unlockKeyAfterPayment() {
+    const realKey = await fetchRealKey();
+    if (realKey) {
+      renderKey(realKey);
+    }
+    keyCardEl.classList.remove('locked');
+    keyStatusEl.innerHTML = '<i></i>Активен';
+    keyStatusEl.style.color = '#4ade80';
+    keyStatusEl.style.background = 'rgba(74,222,128,0.12)';
+  }
+
+  lockKey(); // честное стартовое состояние — ключ ещё не оплачен
+
+  // ============================================================
+  // Account status widget — days-left ring, subscription info, balance,
+  // devices. Starts at zero/empty (no purchase made yet) rather than
+  // pre-filled demo numbers — this is the honest starting state for a
+  // brand-new user. In production, fetch the real state from your backend
+  // the same way as the key:
+  //   GET /miniapp/account { initData } ->
+  //     { daysLeft, totalDays, subUntilLabel, planName,
+  //       devicesUsed, devicesLimit, balanceRub }
+  // and call renderAccountWidget(response) with the real object instead.
+  //
+  // The balance number IS genuinely live on the client side now (not just
+  // decorative): tapping "Пополнить" runs a real top-up payment flow (see
+  // startTopUp() below), and on success the displayed balance actually
+  // increases via addToBalance(). It's still in-memory only (resets on
+  // reload) since there's no backend yet — persisting it for real requires
+  // your server to be the source of truth, same reasoning as the referral
+  // counters elsewhere in this file.
+  // ============================================================
+  let currentBalance = 0;
+  const mockAccount = {
+    daysLeft: 0,
+    totalDays: 90,           // ≈ length of the "3 months" plan, for ring % — adjust per real plan duration
+    subUntilLabel: '—',
+    planName: '—',
+    devicesUsed: 0,
+    devicesLimit: 3,
+    balanceRub: 0,
+  };
+
+  function renderDaysRing(daysLeft, totalDays) {
+    const circle = document.getElementById('daysRingProgress');
+    const r = 42;
+    const circumference = 2 * Math.PI * r;
+    const percent = Math.max(0, Math.min(1, totalDays > 0 ? daysLeft / totalDays : 0));
+    circle.style.strokeDasharray = `${circumference} ${circumference}`;
+    circle.style.strokeDashoffset = `${circumference * (1 - percent)}`;
+    document.getElementById('daysLeftNum').textContent = daysLeft;
+  }
+
+  function renderAccountWidget(acc) {
+    renderDaysRing(acc.daysLeft, acc.totalDays);
+    document.getElementById('subUntilDate').textContent = acc.subUntilLabel;
+    document.getElementById('subPlanName').textContent = acc.planName;
+    document.getElementById('devicesUsedText').textContent = `${acc.devicesUsed} из ${acc.devicesLimit} устройств`;
+    document.getElementById('balanceValue').textContent = acc.balanceRub;
+    document.getElementById('devicesUsedNum').textContent = acc.devicesUsed;
+    const pct = acc.devicesLimit > 0 ? Math.round((acc.devicesUsed / acc.devicesLimit) * 100) : 0;
+    document.getElementById('devicesBarFill').style.width = pct + '%';
+
+    // Status pill reflects reality: no green "active" claim with zero days left.
+    const pill = document.querySelector('.status-pill-active');
+    if (pill) {
+      if (acc.daysLeft > 0) {
+        pill.innerHTML = '<i></i>Подключение активно';
+        pill.style.color = '#4ade80';
+        pill.style.background = 'rgba(74,222,128,0.12)';
+      } else {
+        pill.innerHTML = '<i></i>Нет активной подписки';
+        pill.style.color = 'var(--tg-hint)';
+        pill.style.background = 'rgba(255,255,255,0.06)';
+      }
+    }
+  }
+  renderAccountWidget(mockAccount);
+
+  // Adds a real amount to the live balance and updates the number on screen
+  // with a small count-up animation rather than an instant jump — called
+  // after a top-up payment actually succeeds (see startTopUp()).
+  function addToBalance(amountRub) {
+    const el = document.getElementById('balanceValue');
+    const from = currentBalance;
+    const to = currentBalance + amountRub;
+    currentBalance = to;
+    const duration = 500;
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = Math.round(from + (to - from) * eased);
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // "Как подключиться" now lives at the very bottom of the page — this
+  // button just scrolls there instead of repeating the steps inline.
+  document.getElementById('connectCtaBtn')?.addEventListener('click', () => {
+    document.getElementById('connectSteps')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    tg?.HapticFeedback?.impactOccurred('light');
+  });
+
+  // "Пополнить" runs an actual top-up payment (fixed 100 ₽ for now — swap
+  // for an amount picker once you have a backend) through the same payment
+  // modal/methods as buying a plan, but crediting the balance instead of
+  // activating a subscription.
+  const TOP_UP_AMOUNT_RUB = 100;
+  document.getElementById('topUpBtn')?.addEventListener('click', () => {
+    tg?.HapticFeedback?.impactOccurred('light');
+    startTopUp(TOP_UP_AMOUNT_RUB);
+  });
+
+  // ---------- Copy ----------
+  function copyKey() {
+    const text = keyValueEl.textContent;
+    navigator.clipboard?.writeText(text).then(showCopiedToast).catch(() => {
+      // Fallback for older WebViews without Clipboard API
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showCopiedToast();
+    });
+    tg?.HapticFeedback?.notificationOccurred('success');
+  }
+
+  let toastTimer;
+  function showCopiedToast() {
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  document.getElementById('copyBtn').addEventListener('click', copyKey);
+
+  // ---------- QR toggle ----------
+  document.getElementById('qrToggleBtn').addEventListener('click', (e) => {
+    if (keyCardEl.classList.contains('locked')) {
+      // Ключ ещё не оплачен — QR того же демо-ключа не показываем,
+      // просто мягко подсказываем скроллом к тарифам.
+      document.getElementById('planList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      tg?.HapticFeedback?.notificationOccurred('warning');
+      return;
+    }
+    const wrap = document.getElementById('qrWrap');
+    wrap.classList.toggle('open');
+    tg?.HapticFeedback?.impactOccurred('light');
+  });
+
+  // ---------- Store links — реальные ссылки на AmneziaVPN ----------
+  document.getElementById('happIosLink').href = 'https://apps.apple.com/us/app/amneziavpn/id1600529900';
+  document.getElementById('happAndroidLink').href = 'https://play.google.com/store/apps/details?id=org.amnezia.vpn';
+  document.getElementById('happDesktopLink').href = 'https://amnezia.org/downloads';
+
+  // Support chat + news channel — placeholders, swap for your real @usernames.
+  document.getElementById('supportLink').href = 'https://t.me/RutuGames';
+  document.getElementById('channelLink').href = 'https://t.me/boolgames';
+
+  // ============================================================
+  // Pricing plans
+  // ============================================================
+  let selectedPlanPrice = 100;
+  function updatePayButtonLabel() {
+    const label = `Оплатить ${selectedPlanPrice} ₽`;
+    if (tg?.MainButton) {
+      tg.MainButton.setText(label);
+    } else {
+      document.getElementById('fallbackBtn').textContent = label;
+    }
+  }
+  function selectPlan(el) {
+    document.querySelectorAll('.plan').forEach(p => p.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedPlanPrice = Number(el.dataset.price);
+    updatePayButtonLabel();
+    updateStarsSubtitle();
+    tg?.HapticFeedback?.selectionChanged();
+  }
+  function updateStarsSubtitle() {
+    const el = document.getElementById('starsMethodSub');
+    if (el) el.textContent = `≈${starsForPrice(selectedPlanPrice)} ⭐ · оплата внутри Telegram`;
+  }
+
+  // ============================================================
+  // Payment method selection
+  // ============================================================
+  let selectedMethod = 'card';
+  function selectMethod(el) {
+    document.querySelectorAll('.method').forEach(m => m.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedMethod = el.dataset.method;
+    tg?.HapticFeedback?.selectionChanged();
+  }
+
+  // ============================================================
+  // Gentle "notification-style" vibration for payment success.
+  //
+  // Telegram's own HapticFeedback API only offers fixed short taps
+  // (light/medium/heavy, success/error) — no custom timing. Where the
+  // device/browser exposes the raw Vibration API (mostly Android), we use
+  // a real custom pattern instead: a soft short tap, a brief pause, then a
+  // slightly longer buzz — the same "double pulse" feel as a typical
+  // notification alert (Gmail's exact proprietary pattern isn't public, so
+  // this is our own gentle interpretation of that style, not a literal copy).
+  // On iOS / inside Telegram where raw vibration isn't exposed, we fall
+  // back to two spaced-out Telegram haptic calls to approximate the same
+  // two-beat feel.
+  function notifyVibration() {
+    if (navigator.vibrate) {
+      navigator.vibrate([45, 90, 110]); // short tap - pause - longer buzz
+    } else if (tg?.HapticFeedback) {
+      tg.HapticFeedback.impactOccurred('soft');
+      setTimeout(() => tg.HapticFeedback.notificationOccurred('success'), 220);
+    }
+  }
+
+  // ============================================================
+  // Payment flow (MOCK) — see README for what to wire up for real payments.
+  //
+  // "card"   -> in production this redirects to a licensed payment gateway's
+  //             hosted checkout (YooKassa / CloudPayments / Tinkoff Kassa).
+  //             We never collect raw card numbers ourselves — that requires
+  //             PCI DSS certification; the gateway handles it on their side.
+  // "sbp"    -> real СБП QR codes are generated by the payment gateway/bank
+  //             API per-transaction; the QR below is a visual placeholder.
+  // "stars"  -> Telegram Stars is Telegram's own official in-app currency
+  //             (real, not a workaround). The real flow is:
+  //               1. Your BACKEND calls Bot API `createInvoiceLink` with
+  //                  currency "XTR" and the price in Stars.
+  //               2. The Mini App calls `tg.openInvoice(url, callback)` —
+  //                  Telegram shows its own native payment sheet, user pays
+  //                  with their Stars balance (topped up via Apple/Google IAP
+  //                  inside Telegram itself — you never touch that part).
+  //               3. Telegram sends your bot a `successful_payment` update —
+  //                  THAT is what should trigger granting the subscription,
+  //                  never the client-side callback alone.
+  //             Star amounts are approximate here — Telegram sets the
+  //             XTR exchange rate, so compute the real amount server-side
+  //             when creating the invoice rather than hardcoding it.
+  //
+  // Telegram Wallet is temporarily removed as a payment method — re-add a
+  // "wallet" branch here (QR + TON Connect / Wallet Pay API) if you bring
+  // it back later.
+  // ============================================================
+  // Guards against the exact bug reported: Telegram's native MainButton is
+  // rendered by Telegram itself, OUTSIDE our page's DOM/z-index stack — it
+  // stays tappable even while our pay-overlay modal is visually on top of
+  // everything else. Without this flag, a second tap while a payment is
+  // already animating starts a whole second, overlapping timer/animation
+  // chain, and the two fight over the same DOM elements — which is exactly
+  // what looked like "appearing/disappearing" flicker. Extra taps during
+  // an in-flight payment are now simply ignored until it resolves.
+  let paymentInFlight = false;
+  let currentPaymentAmount = 0;
+  let currentPaymentPurpose = 'subscription'; // 'subscription' | 'topup'
+
+  // Entry point for buying the currently selected plan (bottom button).
+  function startPayment() {
+    runPaymentFlow(selectedPlanPrice, 'subscription');
+  }
+
+  // Entry point for the "Пополнить" balance action — same modal/methods,
+  // different amount and different outcome on success.
+  function startTopUp(amountRub) {
+    runPaymentFlow(amountRub, 'topup');
+  }
+
+  function runPaymentFlow(amountRub, purpose) {
+    if (paymentInFlight) return;
+    paymentInFlight = true;
+    currentPaymentAmount = amountRub;
+    currentPaymentPurpose = purpose;
+
+    const overlay = document.getElementById('payOverlay');
+    const modal = document.getElementById('payModal');
+    const title = document.getElementById('payTitle');
+    const sub = document.getElementById('paySub');
+    const successLabel = purpose === 'topup' ? 'Баланс пополнен' : 'Premium активирован';
+
+    if (selectedMethod === 'sbp') {
+      modal.className = 'pay-modal pay-state-qr';
+      document.getElementById('payQrImg').src =
+        'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=' + encodeURIComponent(`DEMO-SBP-INVOICE:${amountRub}RUB`);
+      document.getElementById('payQrAddr').textContent = 'Отсканируйте QR в приложении вашего банка';
+      title.textContent = 'Оплата по QR (СБП)';
+      sub.textContent = `Сумма к оплате: ${amountRub} ₽`;
+    } else if (selectedMethod === 'stars') {
+      modal.className = 'pay-modal pay-state-processing';
+      title.textContent = 'Открываем оплату Stars…';
+      sub.textContent = 'Telegram покажет платёжное окно';
+      // Real integration: const invoiceUrl = await fetchInvoiceLinkFromBackend(amountRub, purpose);
+      //                    tg.openInvoice(invoiceUrl, (status) => { if (status === 'paid') finishPayment(modal); });
+      setTimeout(() => {
+        title.textContent = 'Оплата прошла успешно';
+        sub.textContent = `${successLabel} · ${starsForPrice(amountRub)} ⭐`;
+        finishPayment(modal);
+      }, 1600);
+    } else {
+      modal.className = 'pay-modal pay-state-processing';
+      title.textContent = 'Обрабатываем оплату…';
+      sub.textContent = 'Не закрывайте приложение';
+      // Simulated redirect+return from a card payment gateway.
+      setTimeout(() => {
+        title.textContent = 'Оплата прошла успешно';
+        sub.textContent = `${successLabel} · ${amountRub} ₽`;
+        finishPayment(modal);
+      }, 1600);
+    }
+
+    overlay.classList.add('open');
+    tg?.HapticFeedback?.impactOccurred('light');
+
+    // Telegram's own API for exactly this situation: shows a spinner inside
+    // the native button itself and makes it non-interactive until we call
+    // hideProgress() — the correct, intended way to prevent double taps,
+    // rather than only relying on our own internal flag.
+    if (tg?.MainButton) {
+      tg.MainButton.showProgress(true);
+    } else {
+      const fb = document.getElementById('fallbackBtn');
+      fb.disabled = true;
+      fb.style.opacity = '0.6';
+    }
+  }
+
+  // Rough RUB -> Stars display estimate for the method list / summaries only.
+  // NEVER use this client-side number to actually charge someone — always
+  // let the backend set the real Stars price when creating the invoice,
+  // since Telegram's exchange rate can change.
+  function starsForPrice(priceRub) {
+    return Math.round(priceRub * 0.65);
+  }
+
+  function closePayment() {
+    document.getElementById('payOverlay').classList.remove('open');
+    paymentInFlight = false; // only unlocked once the user explicitly dismisses the result
+    if (tg?.MainButton) {
+      tg.MainButton.hideProgress();
+      // Some Telegram client versions don't reliably keep MainButton visible
+      // after hideProgress() alone — explicitly re-assert visibility rather
+      // than assuming it stayed shown. This is what was disappearing.
+      tg.MainButton.show();
+    } else {
+      const fb = document.getElementById('fallbackBtn');
+      fb.disabled = false;
+      fb.style.opacity = '';
+    }
+  }
+
+  // Success visuals: just a class swap. Both .pay-spin-ring and
+  // .pay-check-badge are always present in the DOM with their own static
+  // resting opacity/scale values (see CSS) — this line is the entire
+  // "animation trigger", nothing else needs to happen for the crossfade
+  // to play correctly, which is the whole point of this simpler version.
+  function playSuccessMorph(modal) {
+    const ripple = modal.querySelector('.pay-ripple');
+    modal.className = 'pay-modal pay-state-success';
+
+    // Ripple + vibration land together, timed to when the checkmark's own
+    // pop-in transition finishes (350ms, see .pay-check-badge in CSS).
+    setTimeout(() => {
+      ripple.classList.remove('play');
+      void ripple.offsetWidth; // restart the animation if played before
+      ripple.classList.add('play');
+      notifyVibration();
+    }, 350);
+  }
+
+  function finishPayment(modal) {
+    if (currentPaymentPurpose === 'topup') {
+      addToBalance(currentPaymentAmount); // real, visible balance increase — see addToBalance()
+    } else {
+      unlockKeyAfterPayment(); // асинхронно запрашивает настоящий ключ у backend и открывает карточку
+    }
+    playSuccessMorph(modal);
+  }
+
+  // ============================================================
+  // Referral program
+  //
+  // The link below uses the current Telegram user's id (available via
+  // tg.initDataUnsafe — fine to READ client-side for display purposes,
+  // but never trust it for granting rewards; always verify server-side
+  // via the signed tg.initData string, same as the key issuance flow).
+  //
+  // Invite counts / earned balance shown here are in-memory only (reset on
+  // reload) since there's no backend yet. In production: your bot handles
+  // `/start ref_<id>` deep links server-side, records the referral in your
+  // database tied to both Telegram user ids, and credits 50 ₽ to the
+  // referrer's balance there — never on the client (otherwise a user could
+  // fake the request and grant themselves free balance).
+  // ============================================================
+  const BOT_USERNAME = 'yourvpnbot'; // TODO: replace with your real bot username
+  const REFERRAL_REWARD_RUB = 50;
+  const tgUserId = tg?.initDataUnsafe?.user?.id || '000000';
+  document.getElementById('refLink').textContent = `https://t.me/${BOT_USERNAME}?start=ref_${tgUserId}`;
+
+  // Mock stats — replace with a real fetch to your backend, e.g.:
+  //   GET /miniapp/referrals { initData } -> { invited: 3, balanceRub: 150 }
+  document.getElementById('refCount').textContent = '0';
+  document.getElementById('refBalance').textContent = '0 ₽';
+
+  document.getElementById('refCopyBtn').addEventListener('click', () => {
+    const link = document.getElementById('refLink').textContent;
+    navigator.clipboard?.writeText(link).then(() => {
+      document.getElementById('toast').textContent = 'Ссылка скопирована';
+      showCopiedToast();
+      document.getElementById('toast').textContent = 'Ключ скопирован';
+    });
+    tg?.HapticFeedback?.impactOccurred('light');
+  });
+
+  updateStarsSubtitle();
+
+  // ============================================================
+  // Bottom action button — use Telegram's native MainButton when running
+  // inside Telegram (matches the platform's own UI language), otherwise
+  // fall back to our own styled button so the page still works when opened
+  // directly in a regular browser for preview/testing.
+  // ============================================================
+  if (tg?.MainButton) {
+    tg.MainButton.setText(`Оплатить ${selectedPlanPrice} ₽`);
+    tg.MainButton.color = tg.themeParams?.button_color || '#3b82f6';
+    tg.MainButton.show();
+    tg.MainButton.onClick(startPayment);
+
+    // Defensive re-assertion: on some Telegram client versions/platforms the
+    // MainButton can silently drop back to hidden — after a viewport change
+    // (keyboard, resize), or even with no clear trigger at all, which is
+    // exactly the bug reported ("button disappeared") on real devices.
+    // Re-showing it costs nothing if it was already visible, and fixes it
+    // when it wasn't. A short delayed re-check after load covers the case
+    // where the very first .show() call fires before Telegram's UI is
+    // fully ready to render it.
+    const reassertMainButton = () => { if (!paymentInFlight) tg.MainButton.show(); };
+    tg.onEvent('viewportChanged', reassertMainButton);
+    setTimeout(reassertMainButton, 400);
+  } else {
+    document.getElementById('fallbackBtn').textContent = `Оплатить ${selectedPlanPrice} ₽`;
+    document.getElementById('fallbackBtn').classList.add('show');
+    document.getElementById('fallbackBtn').addEventListener('click', startPayment);
+  }
+</script>
+
+</body>
+</html>
