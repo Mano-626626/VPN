@@ -210,18 +210,6 @@
   .qr-wrap img{ width:170px; height:170px; border-radius:12px; background:#fff; padding:8px; }
   .qr-hint{ font-size:11px; color:var(--tg-hint); margin-top:8px; text-align:center; }
 
-  /* ---------- Ключ вручную (Happ) ----------
-     Для Happ основная строка/QR в .key-value теперь показывают ссылку-
-     подписку (см. renderAccountWidget/renderKey) — один и тот же доступ
-     не должен выглядеть как два разных ключа. Сырой vless:// ключ нужен
-     редко (приложения без поддержки подписок), поэтому он свёрнут сюда
-     и открывается по кнопке — тот же приём, что и .qr-wrap/.open. У
-     AmneziaWG подписок нет, там ключ как был основным, так и остался —
-     эта кнопка/блок для неё вообще скрыты (см. renderAccountWidget). */
-  .raw-key-wrap{ display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); }
-  .raw-key-wrap.open{ display:block; }
-  .raw-key-label{ font-size:12px; font-weight:700; color:var(--tg-hint); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px; }
-
   /* ---------- Предупреждение "ключ используется с нескольких мест" ----------
      Два уровня серьёзности: suspected (мягкий жёлтый) и confirmed
      (заметнее, красноватый) — цвет и текст переключаются классом
@@ -283,6 +271,21 @@
   }
   .store-links a:active{ transform:scale(0.94); box-shadow:0 3px 10px rgba(59,130,246,0.3); }
   .store-links a svg{ width:12px; height:12px; flex-shrink:0; }
+  /* Метка платформы (iOS/Android/ПК) над рядом кнопок Happ-приложений —
+     та же типографика, что у .key-label/.raw-key-label, ничего нового. */
+  .store-platform-label{
+    font-size:11px; font-weight:700; color:var(--tg-hint); text-transform:uppercase;
+    letter-spacing:0.04em; margin-top:12px;
+  }
+  /* Второстепенное приложение (не Happ) — та же кнопка .store-links a по
+     размеру/форме, но без заливки/тени/анимации: заимствует внешний вид
+     .ghost-btn (обводка, прозрачный фон), чтобы визуально отличаться от
+     выделенной Happ-кнопки, не изобретая третий стиль. */
+  .store-links a.store-link-secondary{
+    background:transparent; border:1px solid var(--border); color:var(--tg-text);
+    box-shadow:none; animation:none;
+  }
+  .store-links a.store-link-secondary:active{ background:rgba(255,255,255,0.08); box-shadow:none; }
   .store-region-warning{
     display:none; margin-top:9px; font-size:11px; color:#f87171; line-height:1.5;
   }
@@ -1055,23 +1058,10 @@
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         Показать QR
       </button>
-      <button class="ghost-btn" id="rawKeyToggleBtn" style="display:none;">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        Показать ключ вручную
-      </button>
     </div>
     <div class="sub-import-hint" id="subImportHint" style="display:none;">
       <b>📌 Куда вставлять ключ</b>
-      <span>Ссылку-подписку (основная строка выше) вставляйте в пункт «Добавить подписку» в приложении. Обычный ключ (кнопка «Показать ключ вручную») — в «Импорт из буфера обмена». Перепутаете — приложение покажет «подписка не валидна», это не ошибка сервера.</span>
-    </div>
-    <div class="raw-key-wrap" id="rawKeyBox">
-      <div class="raw-key-label">Ключ вручную (для приложений без поддержки подписок)</div>
-      <div class="key-value-box">
-        <span class="key-value" id="rawKeyValue"></span>
-        <button class="copy-btn" id="rawKeyCopyBtn" aria-label="Копировать ключ">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-        </button>
-      </div>
+      <span>Ссылку-подписку (основная строка выше) вставляйте в пункт «Добавить подписку» в приложении. Перепутаете с обычным импортом — приложение покажет «подписка не валидна», это не ошибка сервера.</span>
     </div>
     <div class="qr-wrap" id="qrWrap">
       <img id="qrImage" src="" alt="QR-код ключа">
@@ -1235,11 +1225,46 @@
     <div class="step-text">
       <b id="installAppName">Установите приложение AmneziaVPN</b>
       <span id="installAppDesc">Если приложение ещё не установлено, скачайте официальный клиент AmneziaVPN из App Store, Google Play или с официального сайта для Windows/macOS/Linux.</span>
-      <div class="store-links">
-        <a href="#" id="happIosLink">App Store<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
-        <a href="#" id="happAndroidLink">Google Play<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
-        <a href="#" id="happDesktopLink">Для ПК<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+
+      <!-- AmneziaWG — единственное совместимое приложение, как и раньше. -->
+      <div class="store-links" id="storeLinksAmnezia" style="display:none;">
+        <a href="#" id="amneziaIosLink">App Store<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+        <a href="#" id="amneziaAndroidLink">Google Play<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+        <a href="#" id="amneziaDesktopLink">Для ПК<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
       </div>
+
+      <!-- Happ — ключ этого протокола реально работает в нескольких
+           приложениях, поэтому ссылки сгруппированы по платформам, Happ
+           отмечен как рекомендованный (яркая заливка — тот же .store-links
+           a, что был раньше), остальные равнозначны между собой (кнопка-
+           обводка .store-link-secondary — те же значения, что у .ghost-btn,
+           просто в размере ряда .store-links). Ссылки статичные и
+           проверены запросом с сервера 2026-09-14 (HTTP-код + при
+           необходимости редирект + совпадение названия приложения на
+           странице) — см. историю чата, ничего не угадано. Для платформ,
+           где у приложения нет версии, кнопки просто нет — не пустая
+           и не битая, а отсутствует физически. -->
+      <div id="storeLinksHapp" style="display:none;">
+        <div class="store-platform-label">iOS</div>
+        <div class="store-links">
+          <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215">Happ (рекомендуем)<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <a href="https://apps.apple.com/us/app/incy/id6756943388" class="store-link-secondary">INCY<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <a href="https://apps.apple.com/us/app/streisand/id6450534064" class="store-link-secondary">Streisand<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <a href="https://apps.apple.com/us/app/hiddify-proxy-vpn/id6596777532" class="store-link-secondary">Hiddify<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+        </div>
+        <div class="store-platform-label">Android</div>
+        <div class="store-links">
+          <a href="https://play.google.com/store/apps/details?id=com.happproxy">Happ (рекомендуем)<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <a href="https://play.google.com/store/apps/details?id=llc.itdev.incy" class="store-link-secondary">INCY<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <a href="https://play.google.com/store/apps/details?id=app.hiddify.com" class="store-link-secondary">Hiddify<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+        </div>
+        <div class="store-platform-label">ПК</div>
+        <div class="store-links">
+          <a href="https://www.happ.su/main">Happ (рекомендуем)<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <a href="https://github.com/hiddify/hiddify-app/releases" class="store-link-secondary">Hiddify<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+        </div>
+      </div>
+
       <div class="store-region-warning" id="storeRegionWarning">⚠️ В App Store скачать можно только со сменённым регионом аккаунта (не Россия) — с российским регионом приложения AmneziaVPN в App Store нет.</div>
     </div>
   </div>
@@ -1596,10 +1621,6 @@
   const keyStatusEl = document.getElementById('keyStatus');
   const keyValueEl = document.getElementById('keyValue');
   const qrImage = document.getElementById('qrImage');
-  const rawKeyToggleBtnEl = document.getElementById('rawKeyToggleBtn');
-  const rawKeyBoxEl = document.getElementById('rawKeyBox');
-  const rawKeyValueEl = document.getElementById('rawKeyValue');
-
   function setPrimaryKeyDisplay(text) {
     keyValueEl.textContent = text;
     // Public QR image endpoint — a plain <img> request, degrades gracefully
@@ -1608,15 +1629,16 @@
   }
 
   // У Happ основная строка/QR — это ссылка-подписка (один и тот же
-  // доступ не должен выглядеть как два разных ключа), сырой vless://
-  // ключ уходит в свёрнутый блок "Показать ключ вручную". У AmneziaWG
+  // доступ не должен выглядеть как два разных ключа) — сырой vless://
+  // ключ нигде в интерфейсе не показывается (был свёрнутый блок "Показать
+  // ключ вручную", убран 2026-09-14 по прямому указанию владельца — тот
+  // ключ и так открывался только через ссылку-подписку). У AmneziaWG
   // подписок нет — там ключ как был основным, так и остался.
   // happSubUrl передаётся, только когда он уже известен (см. вызовы
   // ниже) — тогда основную строку обновляем сразу же, не дожидаясь
   // отдельного refreshAccountWidget().
   function renderKey(key, happSubUrl) {
     if (currentProtocol === 'happ') {
-      rawKeyValueEl.textContent = key;
       if (happSubUrl) setPrimaryKeyDisplay(happSubUrl);
     } else {
       setPrimaryKeyDisplay(key);
@@ -2153,18 +2175,11 @@
     const proto = acc[currentProtocol] || {};
 
     // Ссылка-подписка есть только у Happ (acc.happSubUrl — общий на
-    // аккаунт, не завязан на протокол). Для Happ она идёт в основную
-    // строку/QR (setPrimaryKeyDisplay), сырой ключ — в свёрнутый блок
-    // "Показать ключ вручную". У AmneziaWG подписок нет — там основную
-    // строку по-прежнему проставляет только renderKey() с сырым ключом,
-    // здесь её не трогаем, а кнопку/блок ручного ключа прячем и
-    // схлопываем, чтобы не оставались открытыми фоном при переключении.
+    // аккаунт, не завязан на протокол) — идёт в основную строку/QR. У
+    // AmneziaWG подписок нет — там основную строку по-прежнему
+    // проставляет только renderKey() с сырым ключом, здесь её не трогаем.
     if (currentProtocol === 'happ' && acc.happSubUrl) {
       setPrimaryKeyDisplay(acc.happSubUrl);
-      if (rawKeyToggleBtnEl) rawKeyToggleBtnEl.style.display = '';
-    } else {
-      if (rawKeyToggleBtnEl) rawKeyToggleBtnEl.style.display = 'none';
-      if (rawKeyBoxEl) rawKeyBoxEl.classList.remove('open');
     }
 
     renderDaysRing(proto.daysLeft || 0, proto.totalDays || 0);
@@ -2407,7 +2422,32 @@
     } catch (e) { /* не критично, просто не подсветится */ }
   }
 
-  function copyToClipboard(text, onDone, sourceEl) {
+  // successMessage — ТЕКСТ тоста, не callback. Раньше вызывающий код
+  // передавал сюда готовую функцию (обычно голый showCopiedToast без
+  // установки текста, либо самодельный closure) — из-за этого тост на
+  // успешном копировании либо показывал то, что last-написал туда какой-то
+  // СОВЕРШЕННО другой тост в приложении (showCopiedToast никогда не
+  // трогает .textContent сам), либо (у "Скопировать ссылку", см.
+  // refCopyBtn) правильный текст сразу же затирался ошибочной лишней
+  // строкой в том же closure. Оба бага реальные, найдены чтением кода
+  // 2026-09-14, не гипотеза — исправлены тем, что тост теперь ВСЕГДА
+  // получает текст явно и только внутри настоящего результата (успех
+  // или запасной способ), а не заранее.
+  //
+  // Порядок попыток: Telegram Mini Apps SDK НЕ предоставляет метод записи
+  // в буфер обмена вообще (есть только readTextFromClipboard — для
+  // ЧТЕНИЯ, не записи; запись остаётся открытым feature request'ом в
+  // самом SDK на 2026 год) — поэтому "сначала пробовать способ Telegram"
+  // физически нечего пробовать первым, navigator.clipboard уже и есть
+  // первая реальная попытка. Дальше — execCommand('copy'), и только если
+  // оба способа отказали — честный запасной вариант: выделить текст на
+  // экране и попросить скопировать руками, вместо вранья об успехе.
+  function copyToClipboard(text, successMessage, sourceEl) {
+    const onSuccess = () => {
+      document.getElementById('toast').textContent = successMessage;
+      showCopiedToast();
+      tg?.HapticFeedback?.notificationOccurred('success');
+    };
     const onManualFallback = () => {
       selectElementText(sourceEl);
       document.getElementById('toast').textContent = 'Не удалось скопировать автоматически — зажмите текст и выберите «Копировать»';
@@ -2415,9 +2455,9 @@
       tg?.HapticFeedback?.notificationOccurred('error');
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(onDone).catch(() => execCommandCopy(text, onDone, onManualFallback));
+      navigator.clipboard.writeText(text).then(onSuccess).catch(() => execCommandCopy(text, onSuccess, onManualFallback));
     } else {
-      execCommandCopy(text, onDone, onManualFallback);
+      execCommandCopy(text, onSuccess, onManualFallback);
     }
   }
 
@@ -2437,8 +2477,7 @@
 
   function copyKey() {
     const text = keyValueEl.textContent;
-    copyToClipboard(text, showCopiedToast, keyValueEl);
-    tg?.HapticFeedback?.notificationOccurred('success');
+    copyToClipboard(text, 'Ключ скопирован', keyValueEl);
   }
 
   let toastTimer;
@@ -2451,36 +2490,20 @@
 
   document.getElementById('copyBtn').addEventListener('click', copyKey);
 
-  // Копирование сырого ключа вручную (Happ) — тот же приём, что и у
-  // основного ключа выше.
-  document.getElementById('rawKeyCopyBtn').addEventListener('click', () => {
-    copyToClipboard(rawKeyValueEl.textContent, showCopiedToast, rawKeyValueEl);
-    tg?.HapticFeedback?.notificationOccurred('success');
-  });
-
   // ---------- QR toggle ----------
+  // Раньше при заблокированном (неоплаченном) ключе клик уводил
+  // скроллом вниз к тарифам — неожиданно и сбивало с места, где человек
+  // был на странице (см. правку 2026-09-14). Теперь просто честно
+  // говорим тостом, экран не двигаем.
   document.getElementById('qrToggleBtn').addEventListener('click', (e) => {
     if (keyCardEl.classList.contains('locked')) {
-      // Ключ ещё не оплачен — QR того же демо-ключа не показываем,
-      // просто мягко подсказываем скроллом к тарифам.
-      document.getElementById('planList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('toast').textContent = 'Сначала оформите подписку — ключ пока не активен';
+      showCopiedToast();
       tg?.HapticFeedback?.notificationOccurred('warning');
       return;
     }
     const wrap = document.getElementById('qrWrap');
     wrap.classList.toggle('open');
-    tg?.HapticFeedback?.impactOccurred('light');
-  });
-
-  // ---------- Показать ключ вручную (Happ) ----------
-  // Тот же приём, что и у QR — блокировка/раскрытие через класс .open.
-  document.getElementById('rawKeyToggleBtn').addEventListener('click', () => {
-    if (keyCardEl.classList.contains('locked')) {
-      document.getElementById('planList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      tg?.HapticFeedback?.notificationOccurred('warning');
-      return;
-    }
-    rawKeyBoxEl.classList.toggle('open');
     tg?.HapticFeedback?.impactOccurred('light');
   });
 
@@ -2496,12 +2519,12 @@
   // поэтому там имя называется прямо, как и раньше.
   const DOWNLOAD_LINKS = {
     happ: {
-      appName: 'Happ VPN', // используется только для сборки protocolLabel на экране оплаты — не в install/paste текстах ниже
-      ios: 'https://apps.apple.com/ru/app/happ-proxy-utility/id6783623643',
-      android: 'https://play.google.com/store/apps/details?id=com.happproxy',
-      desktop: 'https://happ.info/en/',
+      appName: 'Happ VPN', // используется только для сборки protocolLabel на экране оплаты
       regionWarning: false,
       hint: 'Это подписка, которая работает сразу в нескольких приложениях — Happ (рекомендуем), INCY, Streisand, Hiddify. Ключ один и тот же для любого из них, ставьте то, что удобнее. INCY есть в App Store, Happ — не всегда.',
+      // ios/android/desktop не нужны — у Happ несколько приложений, их
+      // ссылки статично прописаны в разметке (#storeLinksHapp), см. план
+      // и проверку ссылок 2026-09-14.
     },
     amnezia: {
       appName: 'AmneziaVPN',
@@ -2516,9 +2539,18 @@
   function applyProtocolDownloadLinks(protocol) {
     const cfg = DOWNLOAD_LINKS[protocol];
     if (!cfg) return;
-    document.getElementById('happIosLink').href = cfg.ios;
-    document.getElementById('happAndroidLink').href = cfg.android;
-    document.getElementById('happDesktopLink').href = cfg.desktop;
+
+    // Happ — несколько приложений, ссылки уже статично прописаны в
+    // разметке (см. #storeLinksHapp) — здесь только переключаем, какой
+    // из двух блоков показан. AmneziaWG — единственное приложение,
+    // ссылки по-прежнему собираются из DOWNLOAD_LINKS.amnezia.
+    document.getElementById('storeLinksHapp').style.display = protocol === 'happ' ? '' : 'none';
+    document.getElementById('storeLinksAmnezia').style.display = protocol === 'happ' ? 'none' : '';
+    if (protocol !== 'happ') {
+      document.getElementById('amneziaIosLink').href = cfg.ios;
+      document.getElementById('amneziaAndroidLink').href = cfg.android;
+      document.getElementById('amneziaDesktopLink').href = cfg.desktop;
+    }
 
     if (protocol === 'happ') {
       // Ведём к уже показанному списку приложений (store-links сразу
@@ -3251,12 +3283,7 @@
 
   document.getElementById('refCopyBtn').addEventListener('click', () => {
     const linkEl = document.getElementById('refLink');
-    copyToClipboard(linkEl.textContent, () => {
-      document.getElementById('toast').textContent = 'Ссылка скопирована';
-      showCopiedToast();
-      document.getElementById('toast').textContent = 'Ключ скопирован';
-    }, linkEl);
-    tg?.HapticFeedback?.impactOccurred('light');
+    copyToClipboard(linkEl.textContent, 'Ссылка скопирована', linkEl);
   });
 
   // Вызывается из renderAccountWidget() при каждом обновлении сводки —
