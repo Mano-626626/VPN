@@ -164,7 +164,7 @@
   }
   .key-value{
     flex:1; font-family:'SF Mono', Menlo, Consolas, monospace; font-size:12px; color:var(--tg-text);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    line-height:1.5; word-break:break-all; user-select:text;
     transition:filter .4s ease;
   }
   /* ---------- Заблокированный ключ (до оплаты) ----------
@@ -845,13 +845,30 @@
   .ref-icon{ font-size:20px; }
   .ref-title{ font-size:14px; font-weight:700; }
   .ref-sub{ font-size:11.5px; color:var(--tg-hint); line-height:1.5; margin-bottom:14px; }
+  /* Ссылка — целиком видимым текстом, с переносом строк (не обрезаем
+     многоточием в одну строку, как раньше) — если автокопирование не
+     сработает (в Telegram оно нестабильно и не полностью зависит от
+     нашего кода), человеку есть что выделить пальцем и скопировать
+     вручную. См. правку 2026-09-14. */
   .ref-link-box{
-    display:flex; align-items:center; gap:8px; background:rgba(0,0,0,0.25); border-radius:12px; padding:10px 12px; margin-bottom:12px;
+    background:rgba(0,0,0,0.25); border-radius:12px; padding:10px 12px; margin-bottom:12px;
   }
-  .ref-link-text{ flex:1; font-size:11px; font-family:'SF Mono',Menlo,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .ref-copy-btn{ flex-shrink:0; width:30px; height:30px; border-radius:9px; border:none; background:linear-gradient(135deg,var(--accent-a),var(--accent-b)); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .4s cubic-bezier(.22,.61,.36,1); }
-  .ref-copy-btn:active{ transform:scale(0.88); }
-  .ref-copy-btn svg{ width:14px; height:14px; stroke:#fff; }
+  .ref-link-text{ display:block; font-size:11.5px; font-family:'SF Mono',Menlo,monospace; line-height:1.5; word-break:break-all; user-select:text; }
+  /* "Поделиться" — главное действие (штатный t.me/share/url, не зависит
+     от буфера обмена вообще), та же заливка-градиент, что и у остальных
+     "главных" кнопок в приложении. "Копировать" — второе, вспомогательное
+     действие, обводка вместо заливки — тот же приём "второстепенная
+     кнопка", что и у INCY/Streisand/Hiddify в блоке приложений. */
+  .ref-actions{ display:flex; gap:8px; margin-bottom:12px; }
+  .ref-share-btn, .ref-copy-btn{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
+    padding:10px; border-radius:11px; font-size:12.5px; font-weight:700; cursor:pointer;
+    transition:transform .35s cubic-bezier(.22,.61,.36,1);
+  }
+  .ref-share-btn{ border:none; color:#fff; background:linear-gradient(135deg,var(--accent-a),var(--accent-b)); }
+  .ref-share-btn:active{ transform:scale(0.96); }
+  .ref-copy-btn{ border:1px solid var(--border); background:transparent; color:var(--tg-text); font-weight:600; }
+  .ref-copy-btn:active{ background:rgba(255,255,255,0.08); transform:scale(0.96); }
   .ref-stats{ display:flex; gap:10px; }
   .ref-stat{ flex:1; text-align:center; background:rgba(255,255,255,0.04); border-radius:12px; padding:10px; }
   .ref-stat b{ display:block; font-size:17px; font-weight:800; }
@@ -1128,8 +1145,15 @@
     <div class="ref-sub">Пригласите друзей и получите <b>50 ₽ на баланс</b> за каждого. Пригласите 3 друга — и сможете купить подписку на месяц.</div>
     <div class="ref-link-box">
       <span class="ref-link-text" id="refLink">https://t.me/iUvpnbot?start=000000</span>
+    </div>
+    <div class="ref-actions">
+      <button class="ref-share-btn" id="refShareBtn">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v14"/></svg>
+        Поделиться
+      </button>
       <button class="ref-copy-btn" id="refCopyBtn" aria-label="Копировать ссылку">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        Копировать
       </button>
     </div>
     <div class="ref-stats">
@@ -3326,6 +3350,34 @@
   // см. пояснение там.
   // ============================================================
 
+  // "Поделиться" — главное действие в этом блоке (2026-09-14, правка
+  // владельца: копирование в буфер внутри Telegram нестабильно и не
+  // полностью зависит от нашего кода). Штатный диалог "поделиться"
+  // Telegram (t.me/share/url) — открывает выбор чата и вообще не трогает
+  // буфер обмена, для партнёра это ещё и быстрее (сразу отправить
+  // ссылку в свою группу, а не копировать и вставлять руками).
+  const REF_SHARE_TEXT = 'Заходи в iU VPN — VPN без ограничений по трафику. Вот моя ссылка:';
+  document.getElementById('refShareBtn')?.addEventListener('click', () => {
+    const link = document.getElementById('refLink').textContent;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(REF_SHARE_TEXT)}`;
+    try {
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, '_blank');
+      }
+      tg?.HapticFeedback?.impactOccurred('light');
+    } catch (err) {
+      console.error('Не удалось открыть диалог "Поделиться":', err);
+      document.getElementById('toast').textContent = 'Не удалось открыть диалог отправки — скопируйте ссылку вручную ниже';
+      showCopiedToast();
+    }
+  });
+
+  // "Копировать" — второе, вспомогательное действие. Ссылка выше и так
+  // видна целиком текстом (см. .ref-link-text) — если автокопирование не
+  // сработает, copyToClipboard() честно скажет об этом и предложит
+  // выделить текст руками, а не соврёт про успех.
   document.getElementById('refCopyBtn').addEventListener('click', () => {
     const linkEl = document.getElementById('refLink');
     copyToClipboard(linkEl.textContent, 'Ссылка скопирована', linkEl);
