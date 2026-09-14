@@ -1127,7 +1127,7 @@
     <div class="ref-head"><span class="ref-icon">🎁</span><span class="ref-title">Пригласите друзей</span></div>
     <div class="ref-sub">Пригласите друзей и получите <b>50 ₽ на баланс</b> за каждого. Пригласите 3 друга — и сможете купить подписку на месяц.</div>
     <div class="ref-link-box">
-      <span class="ref-link-text" id="refLink">https://t.me/iUvpnbot?startapp=000000</span>
+      <span class="ref-link-text" id="refLink">https://t.me/iUvpnbot?start=000000</span>
       <button class="ref-copy-btn" id="refCopyBtn" aria-label="Копировать ссылку">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
       </button>
@@ -3308,9 +3308,15 @@
   // Referral program — реальные данные с backend, не мок.
   //
   // Реферальный код = telegram_id самого пользователя, отдельно ничего
-  // не генерируется. Ссылка-приглашение — формат startapp (не старый
-  // ?start=), Mini App у приглашённого сама достанет id пригласившего
-  // из initDataUnsafe.start_param при запуске (см. refId выше).
+  // не генерируется. Ссылка-приглашение — формат ?start= (2026-09-14,
+  // правка по замечанию владельца: ?startapp= открывал Mini App НАПРЯМУЮ,
+  // в обход бота — человек не видел приветствия, бот не попадал к нему в
+  // список чатов, ему потом нельзя было ничего написать). ?start= первым
+  // делом открывает ЧАТ с ботом — бот сам привязывает пригласившего по
+  // /start <id> (см. /telegram/webhook на backend) и присылает кнопку,
+  // открывающую Mini App. Старые уже разданные ?startapp=-ссылки
+  // продолжают работать как раньше — эта ветка (refId из
+  // initDataUnsafe.start_param) никуда не делась, см. чуть выше.
   //
   // Награда +50₽ начисляется на backend'е автоматически, когда
   // приглашённый первый раз получает ключ — фронт тут ничего не считает
@@ -3329,7 +3335,7 @@
   // ссылка и счётчики всегда честно совпадают с тем, что знает backend.
   function renderReferralWidget(acc) {
     const code = acc.referralCode || tg?.initDataUnsafe?.user?.id || '';
-    document.getElementById('refLink').textContent = `https://t.me/${BOT_USERNAME}?startapp=${code}`;
+    document.getElementById('refLink').textContent = `https://t.me/${BOT_USERNAME}?start=${code}`;
     const count = acc.referralsCount || 0;
     document.getElementById('refCount').textContent = String(count);
     document.getElementById('refBalance').textContent = `${count * REFERRAL_REWARD_RUB} ₽`;
