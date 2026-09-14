@@ -2210,6 +2210,42 @@
 
     const proto = acc[currentProtocol] || {};
 
+    // Пробный период — обновляется ПЕРВЫМ делом, до всего остального в
+    // этой функции, и в своём try/catch. Раньше блок пробы обновлялся
+    // ПОСЛЕ renderReferralWidget()/renderPartnerWidget() ниже — то есть
+    // зависел от того, что они не бросят исключение: JS прерывает
+    // остаток функции на первой непойманной ошибке, значит ЛЮБОЙ сбой
+    // где угодно раньше в renderAccountWidget тихо оставлял бы кнопку
+    // пробы в устаревшем виде, никак не показывая, что произошло. Найдено
+    // при разборе жалобы "кнопка пробы не видна в Telegram на десктопе,
+    // видна на телефоне" (2026-09-14) — конкретную точку обрыва именно
+    // на десктопе подтвердить не удалось (весь остальной код в этой
+    // функции уже безопасен, включая прошлый инцидент с CloudStorage —
+    // тот код давно и правильно обёрнут в try/catch), но эта перестановка
+    // убирает саму ВОЗМОЖНОСТЬ такого обрыва в принципе, вне зависимости
+    // от причины — то, что явно и просили: "при любой ошибке блок пробы
+    // всё равно отображается, а не исчезает молча".
+    try {
+      const trialBannerEl = document.getElementById('trialBanner');
+      const trialEndedBannerEl = document.getElementById('trialEndedBanner');
+      const showTrialBanner = currentProtocol === 'happ' && proto.trialAvailable;
+      if (trialBannerEl) trialBannerEl.style.display = showTrialBanner ? 'block' : 'none'; // .ref-card — блочная карточка, не flex
+      if (showTrialBanner) {
+        // Длительность приходит с backend (proto.trialDurationDays,
+        // настройка trial.sh set-duration) — текст кнопки и подписи не
+        // зашивает число дней в разметку, иначе после смены длительности
+        // владельцем кнопка продолжала бы врать про старый срок.
+        const days = proto.trialDurationDays || 2;
+        const startBtn = document.getElementById('trialStartBtn');
+        if (startBtn && !startBtn.disabled) startBtn.textContent = `Попробовать ${days} ${daysWordRu(days)} бесплатно`;
+        const subEl = document.getElementById('trialBannerSub');
+        if (subEl) subEl.textContent = `${days} ${daysWordRu(days)} без ограничений, один раз на аккаунт`;
+      }
+      if (trialEndedBannerEl) trialEndedBannerEl.style.display = (currentProtocol === 'happ' && proto.trialJustExpired) ? 'flex' : 'none';
+    } catch (err) {
+      console.error('Не удалось обновить блок пробного периода:', err);
+    }
+
     // Ссылка-подписка есть только у Happ (acc.happSubUrl — общий на
     // аккаунт, не завязан на протокол) — идёт в основную строку/QR. У
     // AmneziaWG подписок нет — там основную строку по-прежнему
@@ -2240,28 +2276,6 @@
 
     renderReferralWidget(acc); // общее, не завязано на протокол
     renderPartnerWidget(acc); // видно только партнёрам (acc.partner !== null)
-
-    // Пробный период — оба поля кладутся backend'ом только в acc.happ (см.
-    // getAccountSummary), на AmneziaWG (acc.amnezia) их просто нет, поэтому
-    // на этой вкладке proto.trialAvailable/trialJustExpired всегда undefined
-    // и баннеры сами не покажутся — но добавляем currentProtocol==='happ'
-    // явно, для читаемости.
-    const trialBannerEl = document.getElementById('trialBanner');
-    const trialEndedBannerEl = document.getElementById('trialEndedBanner');
-    const showTrialBanner = currentProtocol === 'happ' && proto.trialAvailable;
-    if (trialBannerEl) trialBannerEl.style.display = showTrialBanner ? 'block' : 'none'; // .ref-card — блочная карточка, не flex
-    if (showTrialBanner) {
-      // Длительность приходит с backend (proto.trialDurationDays,
-      // настройка trial.sh set-duration) — текст кнопки и подписи не
-      // зашивает число дней в разметку, иначе после смены длительности
-      // владельцем кнопка продолжала бы врать про старый срок.
-      const days = proto.trialDurationDays || 2;
-      const startBtn = document.getElementById('trialStartBtn');
-      if (startBtn && !startBtn.disabled) startBtn.textContent = `Попробовать ${days} ${daysWordRu(days)} бесплатно`;
-      const subEl = document.getElementById('trialBannerSub');
-      if (subEl) subEl.textContent = `${days} ${daysWordRu(days)} без ограничений, один раз на аккаунт`;
-    }
-    if (trialEndedBannerEl) trialEndedBannerEl.style.display = (currentProtocol === 'happ' && proto.trialJustExpired) ? 'flex' : 'none';
 
     // Предупреждение "ключ используется с нескольких мест" — свой статус
     // на каждый протокол (у Happ пока всегда null — мониторинг там ещё
@@ -2479,15 +2493,27 @@
   // первая реальная попытка. Дальше — execCommand('copy'), и только если
   // оба способа отказали — честный запасной вариант: выделить текст на
   // экране и попросить скопировать руками, вместо вранья об успехе.
+  // Выделяем текст ВСЕГДА, ещё до попытки копирования — не только при
+  // неудаче. Причина: у document.execCommand('copy') возврат "true" —
+  // ненадёжный сигнал в WebView-окружениях вроде Telegram (может
+  // отрапортовать успех, когда буфер на самом деле не тронут; у
+  // владельца именно так и оказалось на реальном телефоне 2026-09-14 —
+  // доступ к буферу обмена в этом клиенте Telegram закрыт на уровне
+  // платформы, средствами кода это не лечится). Раз автоматическому
+  // "получилось" в такой среде нельзя доверять полностью, выделенный
+  // текст — это подстраховка, которая не зависит от того, что там
+  // ответил браузер: она либо не понадобится (скопировалось само), либо
+  // окажется ровно тем действием, которое реально сработает.
   function copyToClipboard(text, successMessage, sourceEl) {
+    selectElementText(sourceEl);
     const onSuccess = () => {
       document.getElementById('toast').textContent = successMessage;
       showCopiedToast();
       tg?.HapticFeedback?.notificationOccurred('success');
     };
     const onManualFallback = () => {
-      selectElementText(sourceEl);
-      document.getElementById('toast').textContent = 'Не удалось скопировать автоматически — зажмите текст и выберите «Копировать»';
+      selectElementText(sourceEl); // на случай если попытка копирования сама сбросила выделение
+      document.getElementById('toast').textContent = 'Скопировать не удалось — текст выделен, удерживайте и выберите «Копировать»';
       showCopiedToast();
       tg?.HapticFeedback?.notificationOccurred('error');
     };
