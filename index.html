@@ -1870,7 +1870,15 @@
   const refId = tg?.initDataUnsafe?.start_param || null;
   let currentBalance = 0;
 
-  async function fetchAccountSummary() {
+  // Повторные попытки (2026-09-16, баг "кнопка пробы пропадала, если её
+  // не нажать и выйти из приложения") — при ЛЮБОМ сбое первого запроса
+  // (сеть/временный сбой backend) виджет молча оставался в "честном
+  // нулевом состоянии", где trialAvailable ЗАШИТ как false — человек
+  // видел это как "пробы больше нет", хотя на сервере она по-прежнему
+  // доступна. 3 попытки с растущей паузой закрывают почти все временные
+  // сбои; если и это не помогло — виджет остаётся в честном нулевом
+  // состоянии как и раньше, это не хуже прежнего поведения.
+  async function fetchAccountSummary(attempt = 1) {
     try {
       const res = await fetch(ACCOUNT_URL, {
         method: 'POST',
@@ -1880,7 +1888,11 @@
       if (!res.ok) throw new Error('backend вернул ошибку: ' + res.status);
       return await res.json();
     } catch (err) {
-      console.error('Не удалось получить сводку по аккаунту:', err);
+      console.error(`Не удалось получить сводку по аккаунту (попытка ${attempt}):`, err);
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, attempt * 1000));
+        return fetchAccountSummary(attempt + 1);
+      }
       return null; // виджет просто останется в честном нулевом состоянии
     }
   }
