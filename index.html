@@ -1103,24 +1103,6 @@
     </div>
   </div>
 
-  <!-- Смешанный режим — переключатель профиля маршрутизации Happ-подписки
-       (/miniapp/routing-mode). Только для Happ — видимость решает JS в
-       renderAccountWidget (тот же приём, что у trialBanner), а не CSS:
-       AmneziaWG эту настройку не понимает вообще. Выбор сохраняется на
-       сервере сразу при переключении, ключ НЕ перевыпускается — профиль
-       маршрутизации доставится заголовком при следующем обновлении
-       подписки самим приложением Happ. -->
-  <div class="ref-card" id="mixedModeCard" style="display:none; margin-top:18px;">
-    <div class="ref-head" style="justify-content:space-between;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <span class="ref-icon">🇷🇺</span>
-        <span class="ref-title">Смешанный режим</span>
-      </div>
-      <label class="ios-toggle"><input type="checkbox" id="mixedModeCheck"><span class="ios-toggle-track"><span class="ios-toggle-thumb"></span></span></label>
-    </div>
-    <div class="ref-sub" style="margin-bottom:0;">Часть российских сервисов работает без туннеля — банки и госуслуги не будут жаловаться.</div>
-  </div>
-
   <div class="status-widget">
     <div class="status-top">
       <div class="days-ring">
@@ -1780,48 +1762,6 @@
   // ============================================================
   const TRIAL_URL = 'https://de.startyi.online/miniapp/trial';
 
-  // ============================================================
-  // Смешанный режим — POST https://de.startyi.online/miniapp/routing-mode
-  // Ключ НЕ перевыпускается, тумблер только меняет сохранённый выбор —
-  // сама доставка происходит при следующем обращении Happ-приложения к
-  // ссылке-подписке (заголовок routing, см. server.js).
-  // ============================================================
-  const MIXED_MODE_URL = 'https://de.startyi.online/miniapp/routing-mode';
-
-  async function setMixedMode(enabled) {
-    const checkEl = document.getElementById('mixedModeCheck');
-    if (!checkEl) return;
-    checkEl.disabled = true;
-    try {
-      const res = await fetch(MIXED_MODE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg?.initData || '', enabled }),
-      });
-      let data;
-      try { data = await res.json(); } catch { data = null; }
-      if (!res.ok || !data || data.success === false) {
-        checkEl.checked = !enabled; // откатываем визуально, раз не сохранилось
-        document.getElementById('toast').textContent = 'Не удалось сохранить, попробуйте ещё раз';
-        showCopiedToast();
-        tg?.HapticFeedback?.notificationOccurred('error');
-        return;
-      }
-      lastAccountData = data.account;
-      document.getElementById('toast').textContent = enabled ? 'Смешанный режим включён' : 'Смешанный режим выключен';
-      showCopiedToast();
-      tg?.HapticFeedback?.notificationOccurred('success');
-    } catch (err) {
-      console.error('Не удалось изменить Смешанный режим:', err);
-      checkEl.checked = !enabled;
-      document.getElementById('toast').textContent = 'Ошибка сети, попробуйте ещё раз';
-      showCopiedToast();
-    } finally {
-      checkEl.disabled = false;
-    }
-  }
-  document.getElementById('mixedModeCheck')?.addEventListener('change', (e) => setMixedMode(e.target.checked));
-
   async function startTrial() {
     const btn = document.getElementById('trialStartBtn');
     if (!btn) return;
@@ -2304,19 +2244,6 @@
       if (trialEndedBannerEl) trialEndedBannerEl.style.display = (currentProtocol === 'happ' && proto.trialJustExpired) ? 'flex' : 'none';
     } catch (err) {
       console.error('Не удалось обновить блок пробного периода:', err);
-    }
-
-    // Смешанный режим — своя, отдельная от остального try/catch (тот же
-    // приём, что у блока пробы выше): сбой где угодно ещё в этой функции
-    // не должен молча спрятать тумблер или сбросить его состояние.
-    try {
-      const mixedModeCardEl = document.getElementById('mixedModeCard');
-      const mixedModeCheckEl = document.getElementById('mixedModeCheck');
-      const showMixedMode = currentProtocol === 'happ';
-      if (mixedModeCardEl) mixedModeCardEl.style.display = showMixedMode ? 'block' : 'none';
-      if (mixedModeCheckEl) mixedModeCheckEl.checked = !!proto.routingModeEnabled;
-    } catch (err) {
-      console.error('Не удалось обновить блок Смешанного режима:', err);
     }
 
     // Ссылка-подписка есть только у Happ (acc.happSubUrl — общий на
