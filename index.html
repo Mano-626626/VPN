@@ -358,6 +358,33 @@
     margin:-10px 6px 18px;
   }
 
+  /* ---------- Выбор страны сервера (только AmneziaWG, 2026-09-19) ---------- */
+  .amnezia-country-picker{ display:none; margin:-6px 0 18px; }
+  body.protocol-amnezia .amnezia-country-picker{ display:block; }
+  .country-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .country-card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:12px 10px; text-align:center; position:relative; cursor:pointer;
+  }
+  .country-card.selected{
+    border-color:var(--accent-a);
+    background:linear-gradient(180deg, rgba(59,130,246,0.16), rgba(139,92,246,0.10));
+  }
+  .country-flag{ font-size:22px; line-height:1; margin-bottom:6px; }
+  .country-name{ font-size:12.5px; font-weight:700; margin-bottom:4px; }
+  .country-status{ font-size:10.5px; color:var(--tg-hint); line-height:1.4; }
+  .country-status.active{ color:#4ade80; font-weight:700; }
+  .country-buy-btn{
+    margin-top:8px; width:100%; padding:7px 0; border:none; border-radius:9px;
+    font-size:11.5px; font-weight:700; color:#fff; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent-a),var(--accent-b));
+  }
+  .country-check{
+    position:absolute; top:8px; right:8px; width:16px; height:16px; border-radius:50%;
+    background:var(--accent-a); color:#fff; font-size:10px; font-weight:900;
+    display:flex; align-items:center; justify-content:center;
+  }
+
   /* ---------- "ВАШ КЛЮЧ!" heading ---------- */
   .key-heading{
     font-size:13px; font-weight:800; letter-spacing:.06em; text-align:center;
@@ -956,6 +983,26 @@
   }
   .partner-owed b{ color:var(--accent-a); }
 
+  /* ---------- "Кого привёл, что купили" — только в карточке партнёра (2026-09-19) ---------- */
+  .ref-breakdown{ margin-top:14px; padding-top:14px; border-top:1px dashed var(--border); }
+  .ref-breakdown-label{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--tg-hint);
+    margin-bottom:8px;
+  }
+  .ref-breakdown-rows{ display:flex; flex-direction:column; gap:6px; }
+  .ref-breakdown-row{ display:flex; align-items:center; gap:8px; font-size:12px; }
+  .ref-breakdown-row .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .ref-breakdown-row .dot.happ{ background:var(--accent-a); }
+  .ref-breakdown-row .dot.amnezia{ background:var(--accent-b); }
+  .ref-breakdown-row .proto-name{ flex:1; color:var(--tg-text); }
+  .ref-breakdown-row .proto-count{ font-weight:800; font-variant-numeric:tabular-nums; }
+  .bar-track{
+    height:6px; border-radius:4px; background:rgba(255,255,255,0.08); overflow:hidden;
+    margin-top:9px; display:flex;
+  }
+  .bar-fill.happ{ background:var(--accent-a); }
+  .bar-fill.amnezia{ background:var(--accent-b); }
+
   /* ---------- Support / Telegram channel ---------- */
   .support-card{
     background:var(--card); border:1px solid var(--border); backdrop-filter:blur(20px);
@@ -1117,6 +1164,19 @@
   </div>
   <div class="protocol-hint" id="protocolHint">Это подписка, которая работает сразу в нескольких приложениях — Happ (рекомендуем), INCY, Streisand, Hiddify. Ключ один и тот же для любого из них, ставьте то, что удобнее. INCY есть в App Store, Happ — не всегда.</div>
 
+  <!-- Выбор страны сервера — только у AmneziaWG (2026-09-19). У Happ
+       страны не выбираются — один ключ сразу работает на всех
+       серверах, см. purchaseHappAllServers на backend. Германия и
+       Литва — независимые покупки: свой ключ, свой срок, можно
+       держать обе разом. Блок целиком скрыт для Happ через CSS
+       (body.protocol-amnezia .amnezia-country-picker), не JS —
+       переключение протокола уже переключает body.protocol-amnezia
+       (см. updateProtocolToggleUI). -->
+  <div class="amnezia-country-picker" id="amneziaCountryPicker">
+    <div class="protocol-label">Страна сервера</div>
+    <div class="country-grid" id="countryGrid"></div>
+  </div>
+
   <div class="key-heading">ВАШ КЛЮЧ!</div>
 
   <div class="key-card locked" id="keyCard">
@@ -1224,6 +1284,32 @@
       <div class="ref-stat"><b id="partnerPaidOut">0 ₽</b><span>уже выплачено</span></div>
       <div class="ref-stat partner-owed"><b id="partnerOwed">0 ₽</b><span>к выплате сейчас</span></div>
     </div>
+
+    <!-- "Кого привёл, что купили" (2026-09-19) — только для партнёров,
+         в обычной карточке "Пригласите друзей" этого блока нет. Скрыт
+         целиком, если ни одной покупки ещё не было (пусто в обе
+         стороны выглядело бы как баг, а не как честный ноль) — см.
+         renderPartnerWidget. -->
+    <div class="ref-breakdown" id="partnerBreakdown" style="display:none;">
+      <div class="ref-breakdown-label">Кого привёл, что купили</div>
+      <div class="ref-breakdown-rows">
+        <div class="ref-breakdown-row">
+          <span class="dot happ"></span>
+          <span class="proto-name">Happ</span>
+          <span class="proto-count" id="partnerBreakdownHapp">0</span>
+        </div>
+        <div class="ref-breakdown-row">
+          <span class="dot amnezia"></span>
+          <span class="proto-name">AmneziaVPN</span>
+          <span class="proto-count" id="partnerBreakdownAmnezia">0</span>
+        </div>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill happ" id="partnerBreakdownBarHapp"></div>
+        <div class="bar-fill amnezia" id="partnerBreakdownBarAmnezia"></div>
+      </div>
+    </div>
+
     <!-- Заявка на выплату (2026-09-16, "вторая ступень партнёрки") —
          кнопка видна только при partner.canRequestPayout (доступно >=
          payout_min_rub и нет уже поданной заявки), см. renderAccountWidget.
@@ -1572,6 +1658,37 @@
   const PLAN_MONTHS = { '1': 1, '3': 3, '6': 6, '12': 12 };
   let lastAccountData = null; // полный последний ответ /miniapp/account — переключение протокола перерисовывает из него, без нового запроса
 
+  // ============================================================
+  // AmneziaWG с 2026-09-19 продаётся по странам отдельно (см.
+  // CLAUDE.md) — своя карточка страны в интерфейсе, свой независимый
+  // ключ/срок, backend отдаёт acc.amnezia как {germany:{...},
+  // lithuania:{...}} вместо одного плоского объекта. Happ остался
+  // одним продуктом на всех серверах — acc.happ по-прежнему плоский.
+  // AMNEZIA_COUNTRIES — те же две страны, что сейчас реально включены
+  // на backend (servers.enabled=1, protocols содержит amnezia); список
+  // зашит здесь же, во фронтенде — при добавлении новой страны на
+  // backend нужно ОБЯЗАТЕЛЬНО добавить её и сюда, иначе выбор в
+  // интерфейсе не появится (backend её уже поддержит, просто не будет
+  // видно кнопки).
+  const AMNEZIA_COUNTRIES = [
+    { code: 'germany', flag: '🇩🇪', name: 'Германия' },
+    { code: 'lithuania', flag: '🇱🇹', name: 'Литва' },
+  ];
+  let selectedAmneziaCountry = 'germany';
+
+  // Единая точка чтения "данных текущего протокола" из ответа
+  // /miniapp/account — прячет разницу между Happ (плоский объект) и
+  // AmneziaWG (объект по странам) от всего остального кода ниже,
+  // который как читал proto.daysLeft/planId/... раньше, так и читает
+  // сейчас, не зная, что для AmneziaWG это конкретная выбранная страна.
+  function getProtoData(acc, protocol, country) {
+    if (!acc) return null;
+    if (protocol === 'amnezia') {
+      return (acc.amnezia && acc.amnezia[country || selectedAmneziaCountry]) || null;
+    }
+    return acc[protocol] || null;
+  }
+
   // Тоже объявлены здесь по той же причине — читаются в updatePayButtonLabel(),
   // которая вызывается из renderAccountWidget() уже при самой первой,
   // плейсхолдерной отрисовке виджета, задолго до того места файла, где
@@ -1657,7 +1774,15 @@
 
   async function fetchRealKey(planName, promoCode, confirmRepeat) {
     try {
-      const body = { initData: tg?.initData || '', country: 'germany', planName, protocol: currentProtocol };
+      // Happ игнорирует country на backend (один продукт сразу на всех
+      // серверах, см. purchaseHappAllServers) — 'germany' здесь просто
+      // безобидная заглушка. AmneziaWG с 2026-09-19 продаётся по странам
+      // отдельно — шлём реально выбранную в интерфейсе страну.
+      const body = {
+        initData: tg?.initData || '',
+        country: currentProtocol === 'amnezia' ? selectedAmneziaCountry : 'germany',
+        planName, protocol: currentProtocol,
+      };
       if (promoCode) body.promoCode = promoCode;
       // Человек уже видел вопрос "купить ещё раз?" (см. confirm_repeat_purchase
       // ниже) и явно согласился — повторяем тот же запрос с этим флагом,
@@ -2136,6 +2261,11 @@
         body: JSON.stringify({
           initData: tg?.initData || '',
           protocol: currentProtocol,
+          // AmneziaWG с 2026-09-19 продаётся по странам отдельно — backend
+          // требует country для этого протокола (см. /miniapp/renew,
+          // 400 country_required без него), иначе не может понять, какую
+          // из независимых подписок продлевать.
+          ...(currentProtocol === 'amnezia' ? { country: selectedAmneziaCountry } : {}),
           ...(confirmRepeat ? { confirmRepeat: true } : {}),
         }),
       });
@@ -2282,7 +2412,7 @@
       return;
     }
 
-    const proto = acc[currentProtocol] || {};
+    const proto = getProtoData(acc, currentProtocol) || {};
 
     // Пробный период — обновляется ПЕРВЫМ делом, до всего остального в
     // этой функции, и в своём try/catch. Раньше блок пробы обновлялся
@@ -2351,6 +2481,15 @@
     renderReferralWidget(acc); // общее, не завязано на протокол
     renderPartnerWidget(acc); // видно только партнёрам (acc.partner !== null)
 
+    // Свой try/catch — падение отрисовки карточек стран не должно
+    // задевать ключ/тарифы/кнопку оплаты выше (тот же принцип, что и у
+    // блока пробы в начале этой функции).
+    try {
+      renderCountryPicker(acc);
+    } catch (err) {
+      console.error('Не удалось отрисовать выбор страны AmneziaWG:', err);
+    }
+
     // Предупреждение "ключ используется с нескольких мест" — свой статус
     // на каждый протокол (у Happ пока всегда null — мониторинг там ещё
     // не сделан на backend, это ожидаемо, не баг фронта).
@@ -2368,6 +2507,66 @@
         pill.style.color = 'var(--tg-hint)';
         pill.style.background = 'rgba(255,255,255,0.06)';
       }
+    }
+  }
+
+  // ============================================================
+  // Карточки стран для AmneziaWG (Германия/Литва) — рисуются из
+  // acc.amnezia[код_страны], который backend теперь отдаёт отдельно по
+  // каждой стране (см. getProtoData/AMNEZIA_COUNTRIES выше). Ничего не
+  // делает, если acc.amnezia ещё не пришёл (самая первая, плейсхолдерная
+  // отрисовка) — тогда просто пока нет статусов, карточки покажутся
+  // пустыми "Нет подписки" до настоящего ответа backend'а.
+  function renderCountryPicker(acc) {
+    const grid = document.getElementById('countryGrid');
+    if (!grid) return;
+    const amnezia = acc.amnezia || {};
+
+    grid.innerHTML = '';
+    for (const { code, flag, name } of AMNEZIA_COUNTRIES) {
+      const data = amnezia[code] || { daysLeft: 0 };
+      const isSelected = code === selectedAmneziaCountry;
+      const isActive = (data.daysLeft || 0) > 0;
+
+      const card = document.createElement('div');
+      card.className = 'country-card' + (isSelected ? ' selected' : '');
+      card.dataset.country = code;
+
+      const status = isActive
+        ? `<div class="country-status active">Активна · ${data.daysLeft} ${daysWordRu(data.daysLeft)}</div>`
+        : `<div class="country-status">Нет подписки</div>`;
+
+      card.innerHTML = `
+        ${isSelected ? '<div class="country-check">✓</div>' : ''}
+        <div class="country-flag">${flag}</div>
+        <div class="country-name">${name}</div>
+        ${status}
+        ${!isActive ? `<button type="button" class="country-buy-btn">Купить · ${PROTOCOL_PRICES.amnezia['1']} ₽/мес</button>` : ''}
+      `;
+      card.addEventListener('click', () => selectAmneziaCountry(code));
+      grid.appendChild(card);
+    }
+  }
+
+  // Выбор страны — не покупка сама по себе (в отличие от переключения
+  // Happ/AmneziaWG, который сбрасывает вообще всё). Просто перерисовывает
+  // тот же самый /miniapp/account ответ с другим "разрезом" по стране
+  // (getProtoData учитывает selectedAmneziaCountry) и подтягивает
+  // настоящий ключ ЭТОЙ страны — либо уже активный, либо честно пустой
+  // (locked), если по этой стране подписки ещё не было. Покупка тарифа —
+  // как и раньше, через обычные карточки тарифов + "Оплатить" ниже,
+  // просто теперь country в запросе — выбранная здесь страна (см.
+  // fetchRealKey/doRenewRequest).
+  function selectAmneziaCountry(code) {
+    if (code === selectedAmneziaCountry) return;
+    selectedAmneziaCountry = code;
+    tg?.HapticFeedback?.selectionChanged();
+    if (lastAccountData) renderAccountWidget(lastAccountData);
+
+    lockKey();
+    const proto = lastAccountData ? getProtoData(lastAccountData, 'amnezia', code) : null;
+    if (proto && proto.daysLeft > 0) {
+      unlockKeyAfterPayment(undefined, undefined, { retryOnBusy: true }); // подтягивает настоящий ключ выбранной страны, без planName — не покупка
     }
   }
 
@@ -2404,7 +2603,7 @@
     // нового протокола — не показываем ключ старого протокола ни на
     // долю секунды.
     lockKey();
-    const proto = lastAccountData ? lastAccountData[protocol] : null;
+    const proto = lastAccountData ? getProtoData(lastAccountData, protocol) : null;
     if (proto && proto.daysLeft > 0) {
       unlockKeyAfterPayment(undefined, undefined, { retryOnBusy: true }); // подтягивает настоящий ключ для нового протокола, без planName — не покупка
     }
@@ -2418,7 +2617,10 @@
   renderAccountWidget({
     referralCode: '', referralsCount: 0, devicesLimit: 3, balanceRub: 0,
     happ:    { daysLeft: 0, totalDays: 90, subUntilLabel: '—', planName: '—', planId: null, devicesUsed: 0, keyWarning: null, trialAvailable: false, trialJustExpired: false },
-    amnezia: { daysLeft: 0, totalDays: 90, subUntilLabel: '—', planName: '—', planId: null, devicesUsed: 0, keyWarning: null },
+    amnezia: {
+      germany:   { daysLeft: 0, totalDays: 90, subUntilLabel: '—', planName: '—', planId: null, devicesUsed: 0, keyWarning: null },
+      lithuania: { daysLeft: 0, totalDays: 90, subUntilLabel: '—', planName: '—', planId: null, devicesUsed: 0, keyWarning: null },
+    },
   });
   fetchAccountSummary().then(acc => {
     if (acc) renderAccountWidget(acc);
@@ -2426,7 +2628,8 @@
     // ТЕКУЩЕМ (стартовом — Happ) протоколе — ключ не должен требовать
     // повторной оплаты при каждой загрузке страницы. Разблокируем сразу,
     // запросив тот же настоящий ключ.
-    if (acc && acc[currentProtocol] && acc[currentProtocol].daysLeft > 0) {
+    const startupProto = getProtoData(acc, currentProtocol);
+    if (startupProto && startupProto.daysLeft > 0) {
       unlockKeyAfterPayment(undefined, undefined, { retryOnBusy: true }); // без planName — просто забираем уже активный ключ, не продлевая
     }
   });
@@ -3507,6 +3710,24 @@
     document.getElementById('partnerEarnings').textContent = `${partner.earningsTotal || 0} ₽`;
     document.getElementById('partnerPaidOut').textContent = `${partner.paidOutTotal || 0} ₽`;
     document.getElementById('partnerOwed').textContent = `${partner.owedNow || 0} ₽`;
+
+    // "Кого привёл, что купили" — по protocol первой покупки каждого
+    // приведённого (см. purchasedByProtocol в getAccountSummary на
+    // backend). Скрыт целиком, если покупок ещё не было ни одной —
+    // пустой блок с двумя нулями выглядел бы как баг, а не как честный
+    // "пока никто не купил".
+    const breakdown = document.getElementById('partnerBreakdown');
+    const byProto = partner.purchasedByProtocol || { happ: 0, amnezia: 0 };
+    const totalPurchased = (byProto.happ || 0) + (byProto.amnezia || 0);
+    if (breakdown) {
+      breakdown.style.display = totalPurchased > 0 ? 'block' : 'none';
+      if (totalPurchased > 0) {
+        document.getElementById('partnerBreakdownHapp').textContent = byProto.happ || 0;
+        document.getElementById('partnerBreakdownAmnezia').textContent = byProto.amnezia || 0;
+        document.getElementById('partnerBreakdownBarHapp').style.width = `${Math.round(((byProto.happ || 0) / totalPurchased) * 100)}%`;
+        document.getElementById('partnerBreakdownBarAmnezia').style.width = `${Math.round(((byProto.amnezia || 0) / totalPurchased) * 100)}%`;
+      }
+    }
 
     const payoutBtn = document.getElementById('partnerPayoutBtn');
     const payoutPending = document.getElementById('partnerPayoutPending');
