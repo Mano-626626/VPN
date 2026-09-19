@@ -187,6 +187,28 @@
   }
   .key-card.locked .key-lock-overlay{ display:flex; }
   .key-lock-overlay svg{ width:15px; height:15px; flex-shrink:0; }
+
+  /* ---------- Карточка "Устройства" временно отключена (2026-09-19) ----------
+     По просьбе владельца — счётчик устройств пока не должен вводить
+     людей в заблуждение (сама механика лимита работает, но какая-то
+     смежная часть — нет). Значение и полоска замазаны blur'ом (не
+     просто скрыты), поверх — понятная надпись, подпись карточки
+     ("Устройства") остаётся видна, чтобы было ясно, что именно
+     отключено. Показывается ТОЛЬКО когда на #devicesCard стоит класс
+     .devices-disabled — обычным пользователям без этого класса ничего
+     не меняется. */
+  #devicesCard{ position:relative; }
+  #devicesCard.devices-disabled .overview-value,
+  #devicesCard.devices-disabled .devices-bar{
+    filter:blur(6px); user-select:none;
+  }
+  .devices-disabled-overlay{
+    display:none; align-items:center; justify-content:center;
+    position:absolute; inset:0; border-radius:14px;
+    background:rgba(10,10,16,0.55); backdrop-filter:blur(2px);
+    font-size:11.5px; font-weight:700; color:#fff; text-align:center; padding:0 12px;
+  }
+  #devicesCard.devices-disabled .devices-disabled-overlay{ display:flex; }
   .copy-btn{
     flex-shrink:0; width:34px; height:34px; border-radius:10px; border:none; cursor:pointer;
     background:linear-gradient(135deg, var(--accent-a), var(--accent-b));
@@ -649,6 +671,30 @@
   .menu-fab svg{ width:18px; height:18px; color:var(--tg-text); }
   .menu-fab:active{ transform:scale(0.92); }
 
+  /* ---------- Счётчик пользователей (значок человечка + точка) ----------
+     Верхний левый угол, зеркально .menu-fab справа. display:none по
+     умолчанию — показывается ТОЛЬКО из JS при успешном ответе
+     /miniapp/stats (см. конец основного скрипта). Никогда не 0 и не выдумка:
+     нет данных — блока просто нет. */
+  .user-counter-badge{
+    position:fixed; top:calc(14px + env(safe-area-inset-top, 0px)); left:16px; z-index:70;
+    display:none; align-items:center; gap:6px;
+    height:38px; padding:0 12px 0 10px; border-radius:12px; border:1px solid var(--border);
+    background:var(--card); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    font-size:13px; font-weight:600; color:var(--tg-text); white-space:nowrap;
+  }
+  .user-counter-icon{ font-size:15px; line-height:1; }
+  .user-counter-dot{
+    width:8px; height:8px; border-radius:50%; background:#3ecf5f; flex-shrink:0;
+    box-shadow:0 0 0 0 rgba(62,207,95,0.6);
+    animation:userCounterPulse 2s infinite;
+  }
+  @keyframes userCounterPulse{
+    0%{ box-shadow:0 0 0 0 rgba(62,207,95,0.55); }
+    70%{ box-shadow:0 0 0 6px rgba(62,207,95,0); }
+    100%{ box-shadow:0 0 0 0 rgba(62,207,95,0); }
+  }
+
   /* ---------- Меню (нижний лист) ---------- */
   .sheet-overlay{
     position:fixed; inset:0; z-index:90; background:rgba(0,0,0,0.55);
@@ -985,6 +1031,12 @@
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
 </button>
 
+<div class="user-counter-badge" id="userCounterBadge">
+  <span class="user-counter-icon">👤</span>
+  <span class="user-counter-dot"></span>
+  <span id="userCounterText"></span>
+</div>
+
 <div class="wrap">
 
   <div class="hero">
@@ -1128,10 +1180,11 @@
       <button class="overview-action" id="topUpBtn">Пополнить</button>
       <button class="overview-action" id="renewBtn" style="margin-top:8px; display:none; background:linear-gradient(135deg,#22c55e,#16a34a);">Продлить</button>
     </div>
-    <div class="overview-card">
+    <div class="overview-card devices-disabled" id="devicesCard">
       <div class="overview-label">Устройства</div>
       <div class="overview-value"><span id="devicesUsedNum">2</span><span class="overview-unit">/3</span></div>
       <div class="devices-bar"><span id="devicesBarFill"></span></div>
+      <div class="devices-disabled-overlay">Временно не работает</div>
     </div>
   </div>
 
@@ -1169,6 +1222,13 @@
       <div class="ref-stat"><b id="partnerPaidOut">0 ₽</b><span>уже выплачено</span></div>
       <div class="ref-stat partner-owed"><b id="partnerOwed">0 ₽</b><span>к выплате сейчас</span></div>
     </div>
+    <!-- Заявка на выплату (2026-09-16, "вторая ступень партнёрки") —
+         кнопка видна только при partner.canRequestPayout (доступно >=
+         payout_min_rub и нет уже поданной заявки), см. renderAccountWidget.
+         Сама выплата — вне Mini App, вручную владельцем; здесь только
+         подать заявку и увидеть её статус. -->
+    <button type="button" class="trial-banner-btn" id="partnerPayoutBtn" style="display:none; margin-top:12px; width:100%;">Запросить выплату</button>
+    <div class="ref-sub" id="partnerPayoutPending" style="display:none; margin-top:8px;"></div>
   </div>
 
   </div><!-- /#appMainA -->
@@ -3445,7 +3505,62 @@
     document.getElementById('partnerEarnings').textContent = `${partner.earningsTotal || 0} ₽`;
     document.getElementById('partnerPaidOut').textContent = `${partner.paidOutTotal || 0} ₽`;
     document.getElementById('partnerOwed').textContent = `${partner.owedNow || 0} ₽`;
+
+    const payoutBtn = document.getElementById('partnerPayoutBtn');
+    const payoutPending = document.getElementById('partnerPayoutPending');
+    if (partner.pendingPayoutRequest) {
+      payoutBtn.style.display = 'none';
+      payoutPending.style.display = 'block';
+      payoutPending.textContent = `Заявка на ${partner.pendingPayoutRequest.amountRub} ₽ уже отправлена, ожидайте — выплата обрабатывается вручную`;
+    } else {
+      payoutPending.style.display = 'none';
+      if (partner.canRequestPayout) {
+        payoutBtn.style.display = 'block';
+        payoutBtn.textContent = 'Запросить выплату';
+      } else {
+        payoutBtn.style.display = 'none';
+      }
+    }
   }
+
+  // Заявка на выплату — POST /miniapp/partner/payout-request. backend
+  // сам всё перепроверяет (порог, отсутствие уже поданной заявки) —
+  // кнопка здесь только для UI, как и с пробным периодом.
+  const PARTNER_PAYOUT_URL = 'https://de.startyi.online/miniapp/partner/payout-request';
+  async function requestPartnerPayout() {
+    const btn = document.getElementById('partnerPayoutBtn');
+    if (!btn) return;
+    btn.disabled = true;
+    const prevLabel = btn.textContent;
+    btn.textContent = 'Отправляем заявку…';
+    try {
+      const res = await fetch(PARTNER_PAYOUT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg?.initData || '' }),
+      });
+      let data;
+      try { data = await res.json(); } catch { data = null; }
+      if (!res.ok || !data || data.success === false) {
+        document.getElementById('toast').textContent = (data && data.message) || 'Не удалось отправить заявку, попробуйте ещё раз';
+        showCopiedToast();
+        tg?.HapticFeedback?.notificationOccurred('error');
+      } else {
+        document.getElementById('toast').textContent = `Заявка на ${data.amountRub} ₽ отправлена`;
+        showCopiedToast();
+        tg?.HapticFeedback?.notificationOccurred('success');
+      }
+    } catch (err) {
+      console.error('Не удалось отправить заявку на выплату:', err);
+      document.getElementById('toast').textContent = 'Ошибка сети, попробуйте ещё раз';
+      showCopiedToast();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prevLabel;
+      await refreshAccountWidget();
+    }
+  }
+  document.getElementById('partnerPayoutBtn')?.addEventListener('click', requestPartnerPayout);
 
   // ============================================================
   // Юридическая часть: меню, вьюер документов, гейт согласия на
@@ -3935,6 +4050,36 @@
     }
   } catch (err) {
     console.error('Пауза анимации щита: не удалось (не критично):', err);
+  }
+
+  // ============================================================
+  // Счётчик "N онлайн" (значок человечка + зелёная точка, верхний
+  // левый угол). N — НЕ количество одновременно подключённых, а
+  // растущий счётчик "всего реальных людей было" (см. /miniapp/stats
+  // на backend). Показывается ТОЛЬКО при успешном ответе — при любой
+  // ошибке (нет сети, backend ещё не насчитал, что угодно) блок
+  // просто остаётся скрытым: НИКОГДА не 0, НИКОГДА не выдуманное
+  // число. Стоит в самом конце и в своём try/catch, ПОСЛЕ всех
+  // основных виджетов — декоративный кусок не должен уронить кнопки
+  // покупки/пробника, на этом уже дважды обжигались.
+  // ============================================================
+  try {
+    const STATS_URL = 'https://de.startyi.online/miniapp/stats';
+    fetch(STATS_URL)
+      .then((r) => { if (!r.ok) throw new Error('stats HTTP ' + r.status); return r.json(); })
+      .then((data) => {
+        if (!data || typeof data.total !== 'number' || data.total <= 0) return;
+        const textEl = document.getElementById('userCounterText');
+        const badgeEl = document.getElementById('userCounterBadge');
+        if (!textEl || !badgeEl) return;
+        textEl.textContent = `${data.total} онлайн`;
+        badgeEl.style.display = 'flex';
+      })
+      .catch((err) => {
+        console.error('Счётчик пользователей: нет данных, блок скрыт (не критично):', err);
+      });
+  } catch (err) {
+    console.error('Счётчик пользователей: не удалось инициализировать (не критично):', err);
   }
 </script>
 
