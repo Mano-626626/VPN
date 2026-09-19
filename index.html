@@ -372,6 +372,7 @@
   }
   .country-flag{ font-size:22px; line-height:1; margin-bottom:6px; }
   .country-name{ font-size:12.5px; font-weight:700; margin-bottom:4px; }
+  .country-badge{ font-size:9.5px; font-weight:700; color:#fb923c; white-space:nowrap; }
   .country-status{ font-size:10.5px; color:var(--tg-hint); line-height:1.4; }
   .country-status.active{ color:#4ade80; font-weight:700; }
   .country-buy-btn{
@@ -1672,7 +1673,7 @@
   // видно кнопки).
   const AMNEZIA_COUNTRIES = [
     { code: 'germany', flag: '🇩🇪', name: 'Германия' },
-    { code: 'lithuania', flag: '🇱🇹', name: 'Литва' },
+    { code: 'lithuania', flag: '🇱🇹', name: 'Литва', badge: '🔥 Быстрее' },
   ];
   let selectedAmneziaCountry = 'germany';
 
@@ -2523,7 +2524,7 @@
     const amnezia = acc.amnezia || {};
 
     grid.innerHTML = '';
-    for (const { code, flag, name } of AMNEZIA_COUNTRIES) {
+    for (const { code, flag, name, badge } of AMNEZIA_COUNTRIES) {
       const data = amnezia[code] || { daysLeft: 0 };
       const isSelected = code === selectedAmneziaCountry;
       const isActive = (data.daysLeft || 0) > 0;
@@ -2539,7 +2540,7 @@
       card.innerHTML = `
         ${isSelected ? '<div class="country-check">✓</div>' : ''}
         <div class="country-flag">${flag}</div>
-        <div class="country-name">${name}</div>
+        <div class="country-name">${name}${badge ? ` <span class="country-badge">${badge}</span>` : ''}</div>
         ${status}
         ${!isActive ? `<button type="button" class="country-buy-btn">Купить · ${PROTOCOL_PRICES.amnezia['1']} ₽/мес</button>` : ''}
       `;
@@ -3713,20 +3714,21 @@
 
     // "Кого привёл, что купили" — по protocol первой покупки каждого
     // приведённого (см. purchasedByProtocol в getAccountSummary на
-    // backend). Скрыт целиком, если покупок ещё не было ни одной —
-    // пустой блок с двумя нулями выглядел бы как баг, а не как честный
-    // "пока никто не купил".
+    // backend). Показывается ВСЕГДА партнёрам, даже 0/0 — это честное
+    // текущее состояние (пока никто не куплен именно по партнёрской,
+    // процентной системе), не выдумка и не баг. Раньше блок при 0/0
+    // прятался целиком — из-за этого владелец с 0 партнёрских покупок
+    // не увидел вообще никаких изменений в карточке и решил, что правка
+    // не применилась (2026-09-19) — исправлено, показываем всегда.
     const breakdown = document.getElementById('partnerBreakdown');
     const byProto = partner.purchasedByProtocol || { happ: 0, amnezia: 0 };
     const totalPurchased = (byProto.happ || 0) + (byProto.amnezia || 0);
     if (breakdown) {
-      breakdown.style.display = totalPurchased > 0 ? 'block' : 'none';
-      if (totalPurchased > 0) {
-        document.getElementById('partnerBreakdownHapp').textContent = byProto.happ || 0;
-        document.getElementById('partnerBreakdownAmnezia').textContent = byProto.amnezia || 0;
-        document.getElementById('partnerBreakdownBarHapp').style.width = `${Math.round(((byProto.happ || 0) / totalPurchased) * 100)}%`;
-        document.getElementById('partnerBreakdownBarAmnezia').style.width = `${Math.round(((byProto.amnezia || 0) / totalPurchased) * 100)}%`;
-      }
+      breakdown.style.display = 'block';
+      document.getElementById('partnerBreakdownHapp').textContent = byProto.happ || 0;
+      document.getElementById('partnerBreakdownAmnezia').textContent = byProto.amnezia || 0;
+      document.getElementById('partnerBreakdownBarHapp').style.width = totalPurchased > 0 ? `${Math.round(((byProto.happ || 0) / totalPurchased) * 100)}%` : '0%';
+      document.getElementById('partnerBreakdownBarAmnezia').style.width = totalPurchased > 0 ? `${Math.round(((byProto.amnezia || 0) / totalPurchased) * 100)}%` : '0%';
     }
 
     const payoutBtn = document.getElementById('partnerPayoutBtn');
