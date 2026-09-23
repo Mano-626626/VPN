@@ -1281,9 +1281,22 @@
   <div class="partner-card" id="partnerCard" style="display:none;">
     <div class="ref-head"><span class="ref-icon">💼</span><span class="ref-title">Партнёрка</span></div>
     <div class="partner-stats">
-      <div class="ref-stat"><b id="partnerEarnings">0 ₽</b><span>заработано всего</span></div>
+      <div class="ref-stat"><b id="partnerEarnings">0 ₽</b><span>Доступно</span></div>
       <div class="ref-stat"><b id="partnerPaidOut">0 ₽</b><span>уже выплачено</span></div>
       <div class="ref-stat partner-owed"><b id="partnerOwed">0 ₽</b><span>к выплате сейчас</span></div>
+    </div>
+
+    <!-- "Ожидает" (2026-09-23) — начисления, ещё не прошедшие 14-дневное
+         созревание (см. maturateReferralAccruals на backend). Раньше
+         партнёр не видел эти деньги вообще — новая покупка "пропадала"
+         на 2 недели без объяснения (см. случай владельца 2026-09-23).
+         Скрыто целиком, если ожидающих нет (см. renderPartnerWidget) —
+         пояснение без предмета для пояснения выглядело бы странно. -->
+    <div class="ref-sub" id="partnerPendingRow" style="display:none; margin-top:10px;">
+      Ожидает: <b id="partnerPendingRub">0 ₽</b> — станет доступно <span id="partnerPendingDate"></span>
+    </div>
+    <div class="ref-sub" id="partnerPendingNote" style="display:none; margin-top:2px; opacity:0.65; font-size:11px;">
+      Начисление становится доступным через 14 дней после покупки и при условии, что приглашённый пользуется VPN.
     </div>
 
     <!-- "Кого привёл, что купили" (2026-09-19) — только для партнёров,
@@ -1331,7 +1344,6 @@
       </div>
       <div class="support-btn-group">
         <a href="#" id="supportLink" class="support-btn">Telegram</a>
-        <a href="#" id="supportEmailLink" class="support-btn support-btn-ghost">Email</a>
       </div>
     </div>
     <div class="support-row support-row-channel">
@@ -2932,9 +2944,10 @@
 
   // Support chat + news channel — placeholders, swap for your real @usernames.
   // Support chat (реальный контакт — тот же, что указан во всех
-  // юридических документах, @iUsupp) + email оттуда же.
+  // юридических документах, @iUsupp). Кнопка Email убрана из интерфейса
+  // (2026-09-23, по просьбе владельца) — сам email остаётся в юридических
+  // документах ниже (Оферта/Политики), это правовой контакт, не трогали.
   document.getElementById('supportLink').href = 'https://t.me/iUsupp';
-  document.getElementById('supportEmailLink').href = 'mailto:iUassistance@mail.ru';
   document.getElementById('channelLink').href = 'https://t.me/iUvpngroup';
 
   // Внешние ссылки (поддержка/группа в Telegram, App Store/Google Play/
@@ -3724,6 +3737,21 @@
     document.getElementById('partnerEarnings').textContent = `${partner.earningsTotal || 0} ₽`;
     document.getElementById('partnerPaidOut').textContent = `${partner.paidOutTotal || 0} ₽`;
     document.getElementById('partnerOwed').textContent = `${partner.owedNow || 0} ₽`;
+
+    // "Ожидает" — см. pendingRub/nextMaturityLabel в getAccountSummary на
+    // backend (2026-09-23). Строка и пояснение показываются только когда
+    // реально есть что ждать — pendingRub > 0.
+    const pendingRow = document.getElementById('partnerPendingRow');
+    const pendingNote = document.getElementById('partnerPendingNote');
+    if (partner.pendingRub > 0) {
+      document.getElementById('partnerPendingRub').textContent = `${partner.pendingRub} ₽`;
+      document.getElementById('partnerPendingDate').textContent = partner.nextMaturityLabel || '—';
+      pendingRow.style.display = '';
+      pendingNote.style.display = '';
+    } else {
+      pendingRow.style.display = 'none';
+      pendingNote.style.display = 'none';
+    }
 
     // "Кого привёл, что купили" — по protocol первой покупки каждого
     // приведённого (см. purchasedByProtocol в getAccountSummary на
