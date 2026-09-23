@@ -2817,6 +2817,19 @@
   }
 
   function copyKey() {
+    // Раньше проверки не было вообще — единственной защитой от копирования
+    // недоступного ключа был CSS-оверлей поверх кнопки. Если карточка
+    // застревала в состоянии "locked" (например, unlockKeyAfterPayment не
+    // успел/не смог снять класс) — клик по кнопке ничего не делал: ни
+    // тоста, ни ошибки, полная тишина (жалоба 2026-09-23). Явная проверка
+    // здесь — тот же приём, что уже был у кнопки QR (см. qrToggleBtn ниже):
+    // либо честно говорим тостом, что ключ ещё не готов, либо копируем.
+    if (keyCardEl.classList.contains('locked')) {
+      document.getElementById('toast').textContent = 'Ключ ещё не готов — подождите или обновите страницу';
+      showCopiedToast();
+      tg?.HapticFeedback?.notificationOccurred('warning');
+      return;
+    }
     const text = keyValueEl.textContent;
     copyToClipboard(text, 'Ключ скопирован', keyValueEl);
   }
