@@ -1280,6 +1280,14 @@
 
   <div class="partner-card" id="partnerCard" style="display:none;">
     <div class="ref-head"><span class="ref-icon">💼</span><span class="ref-title">Партнёрка</span></div>
+    <!-- Счётчик приглашённых (2026-09-23) — считается на backend напрямую
+         по users.referred_by (referredTotal) и по referral_accruals
+         accrual_type='first' (referredPurchased, см. getAccountSummary) —
+         поля уже были в API, просто не отображались в интерфейсе. -->
+    <div class="partner-stats" style="margin-bottom:8px;">
+      <div class="ref-stat"><b id="partnerReferredTotal">0</b><span>приглашено</span></div>
+      <div class="ref-stat"><b id="partnerReferredPurchased">0</b><span>из них купили</span></div>
+    </div>
     <div class="partner-stats">
       <div class="ref-stat"><b id="partnerEarnings">0 ₽</b><span>Доступно</span></div>
       <div class="ref-stat"><b id="partnerPaidOut">0 ₽</b><span>уже выплачено</span></div>
@@ -3734,6 +3742,8 @@
       return;
     }
     partnerCard.style.display = '';
+    document.getElementById('partnerReferredTotal').textContent = partner.referredTotal || 0;
+    document.getElementById('partnerReferredPurchased').textContent = partner.referredPurchased || 0;
     document.getElementById('partnerEarnings').textContent = `${partner.earningsTotal || 0} ₽`;
     document.getElementById('partnerPaidOut').textContent = `${partner.paidOutTotal || 0} ₽`;
     document.getElementById('partnerOwed').textContent = `${partner.owedNow || 0} ₽`;
