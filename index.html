@@ -947,6 +947,18 @@
   .ref-stat{ flex:1; text-align:center; background:rgba(255,255,255,0.04); border-radius:12px; padding:10px; }
   .ref-stat b{ display:block; font-size:17px; font-weight:800; }
   .ref-stat span{ font-size:10px; color:var(--tg-hint); }
+  /* Достижения (2026-09-25, правка) — весь список сразу: полученные яркие,
+     неполученные серые (opacity), у ближайшего неполученного — подсказка
+     "осталось...". Без званий/статусов (убраны по решению владельца) и
+     без прогресс-баров — спокойный вид, просто список. */
+  .achv-list{ display:flex; flex-direction:column; gap:8px; }
+  .achv-item{ display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.04); border-radius:12px; padding:10px 12px; }
+  .achv-item.locked{ opacity:0.4; }
+  .achv-item .achv-emoji{ font-size:16px; }
+  .achv-item .achv-body{ flex:1; min-width:0; }
+  .achv-item .achv-name{ font-size:12.5px; font-weight:600; display:block; }
+  .achv-item .achv-hint{ font-size:10.5px; color:var(--tg-hint); display:block; margin-top:1px; }
+  .achv-item .achv-amount{ font-size:11.5px; font-weight:700; color:#4ade80; white-space:nowrap; }
 
   /* ---------- Пробный период Happ — кнопка ----------
      Карточка вокруг неё — переиспользованный .ref-card (та же, что у
@@ -1343,6 +1355,19 @@
          подать заявку и увидеть её статус. -->
     <button type="button" class="trial-banner-btn" id="partnerPayoutBtn" style="display:none; margin-top:12px; width:100%;">Запросить выплату</button>
     <div class="ref-sub" id="partnerPayoutPending" style="display:none; margin-top:8px;"></div>
+  </div>
+
+  <!-- Достижения (2026-09-25) — существует для человека, только когда у
+       него УЖЕ есть хотя бы один значок (см. getAchievementsSummary на
+       backend, acc.achievements === null до первого значка). Нигде
+       заранее не анонсируется — блок физически отсутствует в разметке
+       смысла (display:none по умолчанию), не "0 из 7". -->
+  <div class="ref-card" id="achievementsCard" style="display:none; margin-top:22px;">
+    <div class="ref-head">
+      <span class="ref-icon">🏅</span>
+      <span class="ref-title">Достижения</span>
+    </div>
+    <div class="achv-list" id="achievementsList"></div>
   </div>
 
   </div><!-- /#appMainA -->
@@ -2513,6 +2538,7 @@
 
     renderReferralWidget(acc); // общее, не завязано на протокол
     renderPartnerWidget(acc); // видно только партнёрам (acc.partner !== null)
+    try { renderAchievementsWidget(acc); } catch (err) { console.error('Не удалось обновить блок достижений:', err); }
 
     // Свой try/catch — падение отрисовки карточек стран не должно
     // задевать ключ/тарифы/кнопку оплаты выше (тот же принцип, что и у
@@ -3813,6 +3839,32 @@
       } else {
         payoutBtn.style.display = 'none';
       }
+    }
+  }
+
+  // Достижения (2026-09-25, правка) — acc.achievements === null, пока у
+  // человека нет ни одного значка (см. getAchievementsSummary на backend) —
+  // блок тогда просто скрыт целиком. Как только есть хотя бы один — приходит
+  // ВЕСЬ список (acc.achievements.list): полученные показываем ярко,
+  // неполученные — серым (.locked), у ближайшего неполученного есть
+  // item.hint ("осталось..."). Званий/статусов нет — убраны по решению
+  // владельца, только список значков.
+  function renderAchievementsWidget(acc) {
+    const card = document.getElementById('achievementsCard');
+    const a = acc.achievements;
+    if (!a) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    const listEl = document.getElementById('achievementsList');
+    listEl.innerHTML = '';
+    for (const item of a.list) {
+      const row = document.createElement('div');
+      row.className = 'achv-item' + (item.earned ? '' : ' locked');
+      const hintHtml = item.hint ? `<span class="achv-hint">${item.hint}</span>` : '';
+      row.innerHTML = `<span class="achv-emoji">${item.emoji}</span>` +
+        `<span class="achv-body"><span class="achv-name">${item.name}</span>${hintHtml}</span>` +
+        (item.earned && item.amountRub ? `<span class="achv-amount">+${item.amountRub} ₽</span>` : '');
+      listEl.appendChild(row);
     }
   }
 
