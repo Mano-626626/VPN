@@ -1850,6 +1850,12 @@
         if (promoCode && data && data.message) {
           return { ok: false, error: 'promo_error', message: data.message };
         }
+        // Лимит устройств (3 слота — см. DEVICE_LIMIT в server.js) — раньше
+        // падало в общий catch и человек видел "ошибка сети", хотя это
+        // осознанный отказ, не сбой. Показываем как есть, с объяснением.
+        if (res.status === 403 && data && data.error === 'device_limit_reached') {
+          return { ok: false, error: 'device_limit_reached' };
+        }
         throw new Error('backend вернул ошибку: ' + res.status);
       }
       // Happ отдаёт ключ в happUri, AmneziaWG — в vpnUri; берём то поле,
@@ -2329,6 +2335,8 @@
           // списаны, просто другой запрос ещё выполняется на backend.
           msg = 'Покупка уже выполняется, подождите несколько секунд';
           extraBtnDelayMs = 3000;
+        } else if (data.error === 'device_limit_reached') {
+          msg = 'Достигнут лимит подписок — отключите одну из старых, чтобы продолжить';
         } else if (data.error) {
           msg = `Не удалось завершить покупку, попробуйте ещё раз (код: ${String(data.error).replace(/[<>&]/g, '')})`;
         }
@@ -3512,6 +3520,11 @@
       document.getElementById('payTitle').textContent = 'Покупка уже выполняется';
       document.getElementById('paySub').textContent = 'Подождите несколько секунд и попробуйте ещё раз';
       extraDoneBtnDelayMs = 3000;
+    } else if (result.error === 'device_limit_reached') {
+      // Не сбой сети — осознанный отказ (максимум подписок уже занят).
+      // Деньги не списаны, объясняем причину и что делать.
+      document.getElementById('payTitle').textContent = 'Достигнут лимит подписок';
+      document.getElementById('paySub').textContent = 'У вас уже максимум активных подписок. Отключите одну из старых, чтобы добавить новую — напишите в поддержку.';
     } else {
       const errCode = result.error ? String(result.error).replace(/[<>&]/g, '') : 'unknown';
       document.getElementById('payTitle').textContent = 'Не удалось завершить покупку';
