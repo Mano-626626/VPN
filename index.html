@@ -351,6 +351,9 @@
   .protocol-toggle-btn.active{ color:#fff; }
   .protocol-toggle-btn:active{ opacity:.85; }
   /* Надпись "Подписка (Happ, INCY)" длиннее прежней — не переносим на вторую строку, на узких экранах чуть уменьшаем шрифт (2026-09-26). */
+  /* Плашка акции (2026-09-26): та же карточка .ref-card и кнопка .trial-banner-btn, что у баннера пробы */
+  .promo-banner-countdown{ margin-top:10px; font-size:12.5px; color:var(--tg-hint); text-align:center; font-variant-numeric:tabular-nums; }
+  .promo-banner-countdown b{ color:var(--tg-text); font-weight:700; }
   .protocol-toggle-btn{ white-space:nowrap; }
   @media (max-width:370px){ .protocol-toggle-btn{ font-size:11.5px; } }
   @media (max-width:340px){ .protocol-toggle-btn{ font-size:10.5px; } }
@@ -1154,6 +1157,13 @@
        карточка, что у "Пригласите друзей"), только кнопка крупнее
        ("призыв к действию", не мелкая ссылка) — размеры кнопки взяты у
        .confirm-pay-btn (кнопка реальной оплаты), не придуманы заново. -->
+  <!-- Плашка акции: настройки (текст, ссылка, срок) — на backend (banner.sh), по умолчанию скрыта; рисуется отдельным блоком в конце скрипта в своём try/catch -->
+  <div class="ref-card" id="promoBanner" style="display:none; margin-top:18px;">
+    <div class="ref-head"><span class="ref-title" id="promoBannerTitle"></span></div>
+    <div class="ref-sub" id="promoBannerText"></div>
+    <button type="button" class="trial-banner-btn" id="promoBannerBtn"></button>
+    <div class="promo-banner-countdown">До конца акции: <b id="promoBannerCountdown">--:--:--</b></div>
+  </div>
   <div class="ref-card" id="trialBanner" style="display:none; margin-top:18px;">
     <div class="ref-head"><span class="ref-icon">🎁</span><span class="ref-title">Попробуйте подписку бесплатно</span></div>
     <div class="ref-sub" id="trialBannerSub">2 дня без ограничений, один раз на аккаунт</div>
@@ -4436,6 +4446,61 @@
       });
   } catch (err) {
     console.error('Счётчик пользователей: не удалось инициализировать (не критично):', err);
+  }
+
+  // ============================================================
+  // Плашка акции (2026-09-26). Всё содержимое (текст, кнопка, ссылка,
+  // срок) приходит с backend (GET /miniapp/promo-banner, управляется
+  // /root/banner.sh) — в коде ничего не зашито. Пока акция не идёт или
+  // при ЛЮБОЙ ошибке (нет сети, старый backend) плашка просто скрыта.
+  // Обратный отсчёт считается по времени СЕРВЕРА (serverNow), а не по
+  // часам телефона, и сам скрывает плашку по нулю. Стоит в самом конце
+  // и в своём try/catch — сбой не должен уронить остальной экран.
+  // ============================================================
+  try {
+    const PROMO_BANNER_URL = 'https://de.startyi.online/miniapp/promo-banner';
+    const promoEl = document.getElementById('promoBanner');
+    if (promoEl) {
+      fetch(PROMO_BANNER_URL, { cache: 'no-store' })
+        .then((r) => { if (!r.ok) throw new Error('promo-banner HTTP ' + r.status); return r.json(); })
+        .then((b) => {
+          if (!b || !b.active || !b.endsAt || !/^https:\/\//.test(String(b.url || ''))) return;
+          const offset = (Number(b.serverNow) || Date.now()) - Date.now();
+          const endLocal = Number(b.endsAt) - offset;
+          const cdEl = document.getElementById('promoBannerCountdown');
+          document.getElementById('promoBannerTitle').textContent = b.title || '';
+          document.getElementById('promoBannerText').textContent = b.text || '';
+          const btn = document.getElementById('promoBannerBtn');
+          btn.textContent = b.buttonText || 'Перейти';
+          btn.addEventListener('click', () => {
+            try {
+              if (/^https:\/\/t\.me\//i.test(b.url) && tg?.openTelegramLink) tg.openTelegramLink(b.url);
+              else if (tg?.openLink) tg.openLink(b.url);
+              else window.open(b.url, '_blank');
+            } catch (err) {
+              console.error('Плашка акции: не удалось открыть ссылку:', err);
+              try { window.open(b.url, '_blank'); } catch (e2) { /* ничего не делаем */ }
+            }
+          });
+          const pad = (n) => String(n).padStart(2, '0');
+          let timer = null;
+          const tick = () => {
+            const left = endLocal - Date.now();
+            if (left <= 0) { promoEl.style.display = 'none'; if (timer) clearInterval(timer); return; }
+            const sec = Math.floor(left / 1000);
+            const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+            cdEl.textContent = (d > 0 ? d + ' д ' : '') + pad(h) + ':' + pad(m) + ':' + pad(s);
+          };
+          tick();
+          if (endLocal - Date.now() > 0) {
+            promoEl.style.display = '';
+            timer = setInterval(tick, 1000);
+          }
+        })
+        .catch((err) => { console.error('Плашка акции: нет данных, блок скрыт (не критично):', err); });
+    }
+  } catch (err) {
+    console.error('Плашка акции: не удалось инициализировать (не критично):', err);
   }
 </script>
 
