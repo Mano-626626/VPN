@@ -350,6 +350,10 @@
   }
   .protocol-toggle-btn.active{ color:#fff; }
   .protocol-toggle-btn:active{ opacity:.85; }
+  /* Надпись "Подписка (Happ, INCY)" длиннее прежней — не переносим на вторую строку, на узких экранах чуть уменьшаем шрифт (2026-09-26). */
+  .protocol-toggle-btn{ white-space:nowrap; }
+  @media (max-width:370px){ .protocol-toggle-btn{ font-size:11.5px; } }
+  @media (max-width:340px){ .protocol-toggle-btn{ font-size:10.5px; } }
   .protocol-hint{
     font-size:11.5px; color:var(--tg-hint); line-height:1.5; text-align:center;
     margin:-10px 6px 18px;
@@ -1169,7 +1173,7 @@
   <div class="protocol-label">Способ подключения</div>
   <div class="protocol-toggle" id="protocolToggle">
     <div class="protocol-toggle-thumb" id="protocolToggleThumb"></div>
-    <button type="button" class="protocol-toggle-btn active" data-protocol="happ" id="protocolBtnHapp">Подписка (Happ)</button>
+    <button type="button" class="protocol-toggle-btn active" data-protocol="happ" id="protocolBtnHapp">Подписка (Happ, INCY)</button>
     <button type="button" class="protocol-toggle-btn" data-protocol="amnezia" id="protocolBtnAmnezia">AmneziaVPN</button>
   </div>
   <div class="protocol-hint" id="protocolHint">Это подписка, которая работает сразу в нескольких приложениях — Happ (рекомендуем), INCY, Streisand, Hiddify. Ключ один и тот же для любого из них, ставьте то, что удобнее. INCY есть в App Store, Happ — не всегда.</div>
@@ -1340,7 +1344,7 @@
       <div class="ref-breakdown-rows">
         <div class="ref-breakdown-row">
           <span class="dot happ"></span>
-          <span class="proto-name">Happ</span>
+          <span class="proto-name">Happ, INCY</span>
           <span class="proto-count" id="partnerBreakdownHapp">0</span>
         </div>
         <div class="ref-breakdown-row">
