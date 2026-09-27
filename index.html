@@ -590,6 +590,12 @@
   .promo-check-btn:active{ transform:scale(0.95); }
   .promo-check-btn:disabled{ opacity:.6; }
   .promo-result{ font-size:11.5px; margin-top:8px; line-height:1.45; display:none; }
+  /* Быстрая выдача бесплатного промокода (2026-09-27) — минуя выбор тарифа и экран
+     оплаты: одна кнопка + одна строка согласия, вместо полноценного платёжного флоу. */
+  .promo-activate-row{ margin-top:10px; display:none; }
+  .promo-activate-row.show{ display:block; }
+  .promo-activate-consent{ font-size:10.5px; color:var(--tg-hint); text-align:center; margin-top:6px; line-height:1.4; }
+  .promo-activate-consent a{ color:var(--tg-link, #6ab7ff); }
   .promo-result.show{ display:block; }
   .promo-result.ok{ color:#4ade80; }
   .promo-result.error{ color:#f87171; }
@@ -1463,6 +1469,10 @@
       <button type="button" class="promo-check-btn" id="promoCheckBtn">Проверить</button>
     </div>
     <div class="promo-result" id="promoResult"></div>
+    <div class="promo-activate-row" id="promoActivateRow">
+      <button type="button" class="trial-banner-btn" id="promoActivateBtn">Активировать</button>
+      <div class="promo-activate-consent">Нажимая «Активировать», вы принимаете <a href="#" id="promoActivateTermsLink">оферту</a> и <a href="#" id="promoActivatePdLink">политику обработки персональных данных</a>.</div>
+    </div>
   </div>
 
   <div class="pay-guarantee">🛡 Оплата защищена. Отмена в любой момент.</div>
@@ -1873,6 +1883,11 @@
       try { data = await res.json(); } catch { data = null; }
 
       if (!res.ok) {
+        // См. тот же комментарий у checkPromoCode — 401 лечится только
+        // новым открытием приложения, повтор запроса не поможет.
+        if (res.status === 401) {
+          return { ok: false, error: 'session_expired' };
+        }
         if (data && data.error === 'insufficient_balance') {
           return { ok: false, error: 'insufficient_balance', missingRub: data.missingRub };
         }
@@ -3087,6 +3102,70 @@
   // измениться цена или применимость кода (правка поля, смена тарифа,
   // смена протокола): старая проверка перестаёт быть актуальной без
   // повторного запроса к /miniapp/promo-check.
+  // Мгновенная выдача бесплатного промокода (2026-09-27) — минуя выбор тарифа
+  // и обычный платёжный экран. Тариф для backend не важен: при type='free_days'
+  // server.js полностью игнорирует planName и берёт срок из самого промокода
+  // (см. effectivePlanName=null/happGrantDays=promo.value в /miniapp/key) —
+  // отправляем planName:'1' просто как формально непустое значение.
+  async function activatePromoCode() {
+    if (!validatedPromoCode || validatedPromoInfo?.type !== 'free_days') return;
+    const btn = document.getElementById('promoActivateBtn');
+    const resultEl = document.getElementById('promoResult');
+    btn.disabled = true;
+    const prevLabel = btn.textContent;
+    btn.textContent = 'Выдаём ключ…';
+    const codeToActivate = validatedPromoCode;
+    try {
+      const promoInfoForMessage = validatedPromoInfo; // clearPromoAfterPurchase() ниже сбрасывает validatedPromoInfo в null
+      const result = await fetchRealKey('1', codeToActivate);
+      if (result.ok) {
+        clearPromoAfterPurchase();
+        document.getElementById('promoActivateRow').classList.remove('show');
+        renderKey(result.vpnUri, result.happSubUrl);
+        keyCardEl.classList.remove('locked');
+        keyStatusEl.innerHTML = '<i></i>Активен';
+        keyStatusEl.style.color = '#4ade80';
+        keyStatusEl.style.background = 'rgba(74,222,128,0.12)';
+        resultEl.textContent = `✓ Готово! ${promoInfoForMessage.value} ${daysWordRu(promoInfoForMessage.value)} добавлены к подписке.`;
+        resultEl.className = 'promo-result show ok';
+        tg?.HapticFeedback?.notificationOccurred('success');
+        keyCardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Не await и в своём try/catch: ключ уже выдан и успех уже показан —
+        // сбой одного лишь фонового обновления виджета баланса/достижений
+        // не должен перезатирать текст успеха текстом про "нет связи".
+        refreshAccountWidget().catch((e) => console.error('Не удалось обновить виджет после активации промокода:', e));
+        return;
+      }
+      let msg = 'Не удалось активировать промокод, попробуйте ещё раз';
+      if (result.error === 'session_expired') {
+        msg = 'Сессия устарела — закройте приложение полностью и откройте заново';
+      } else if (result.error === 'promo_error' && result.message) {
+        msg = result.message;
+      } else if (result.error === 'device_limit_reached') {
+        msg = 'Достигнут лимит подписок — отключите одну из старых, чтобы добавить новую';
+      }
+      resultEl.textContent = msg;
+      resultEl.className = 'promo-result show error';
+      tg?.HapticFeedback?.notificationOccurred('error');
+    } catch (err) {
+      console.error('Не удалось активировать промокод:', err);
+      resultEl.textContent = 'Нет связи с сервером — проверьте интернет и попробуйте снова';
+      resultEl.className = 'promo-result show error';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prevLabel;
+    }
+  }
+  document.getElementById('promoActivateBtn')?.addEventListener('click', activatePromoCode);
+  document.getElementById('promoActivateTermsLink')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openDoc('terms');
+  });
+  document.getElementById('promoActivatePdLink')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openDoc('pd');
+  });
+
   function resetValidatedPromo() {
     validatedPromoCode = null;
     validatedPromoInfo = null;
@@ -3101,6 +3180,7 @@
     const code = input.value.trim();
 
     resetValidatedPromo();
+    document.getElementById('promoActivateRow').classList.remove('show');
 
     if (!code) {
       resultEl.textContent = 'Введите промокод';
@@ -3127,6 +3207,21 @@
         resultEl.textContent = `✓ ${promoDescription(data.type, data.value)}`;
         resultEl.className = 'promo-result show ok';
         tg?.HapticFeedback?.notificationOccurred('success');
+        // "Активировать" — мгновенная выдача без тарифа/оплаты — имеет смысл
+        // только для бесплатных дней (free_days): у percent-кодов сумма зависит
+        // от выбранного тарифа, там остаётся обычная покупка (см. ниже, п.4).
+        document.getElementById('promoActivateRow').classList.toggle('show', data.type === 'free_days');
+      } else if (res.status === 401) {
+        // 2026-09-27: подпись Telegram (initData) устарела или её вообще нет
+        // (например, ссылку Mini App открыли не через кнопку в боте, а прямо
+        // в браузере) — backend отвечает {"error":"invalid signature"} без
+        // .message, раньше это тонуло в общем "попробуйте ещё раз" и повтор
+        // с той же устаревшей подписью ничего не менял. Единственное реальное
+        // лечение — новое открытие приложения (новая подпись), не повтор.
+        resultEl.textContent = 'Сессия устарела — закройте приложение полностью и откройте заново';
+        resultEl.className = 'promo-result show error';
+        tg?.HapticFeedback?.notificationOccurred('error');
+        document.getElementById('promoActivateRow').classList.remove('show');
       } else {
         // Бэкенд всегда присылает понятный текст для человека (см.
         // /miniapp/promo-check) — кроме пустого кода, для него текст
@@ -3134,6 +3229,7 @@
         resultEl.textContent = (data && data.message) || 'Не удалось проверить промокод — попробуйте ещё раз';
         resultEl.className = 'promo-result show error';
         tg?.HapticFeedback?.notificationOccurred('error');
+        document.getElementById('promoActivateRow').classList.remove('show');
       }
     } catch (err) {
       console.error('Не удалось проверить промокод:', err);
@@ -3306,7 +3402,13 @@
       document.getElementById('confirmPromoRow').style.display = 'none';
     } else {
       const months = PLAN_MONTHS[selectedPlanId] || 1;
-      const days = selectedPlanId === '12' ? 365 : months * 30;
+      // 2026-09-27 (починка): при активном бесплатном промокоде показывать
+      // срок ИЗ САМОГО ПРОМОКОДА, а не из выбранной карточки тарифа — раньше
+      // сумма всегда была 0 ₽ верно, а срок в тексте мог не совпадать с тем,
+      // что реально выдаётся (backend для free_days игнорирует выбранный тариф).
+      const days = (confirmPendingPromoCode && validatedPromoInfo?.type === 'free_days')
+        ? validatedPromoInfo.value
+        : (selectedPlanId === '12' ? 365 : months * 30);
       document.getElementById('confirmServiceName').textContent = `${protocolLabel} — подписка на ${days} дней`;
       document.getElementById('confirmPlanRow').style.display = '';
       document.getElementById('confirmPlanName').textContent = `${months} мес.`;
@@ -3572,6 +3674,9 @@
       document.getElementById('payTitle').textContent = 'Покупка уже выполняется';
       document.getElementById('paySub').textContent = 'Подождите несколько секунд и попробуйте ещё раз';
       extraDoneBtnDelayMs = 3000;
+    } else if (result.error === 'session_expired') {
+      document.getElementById('payTitle').textContent = 'Сессия устарела';
+      document.getElementById('paySub').textContent = 'Деньги не списаны. Закройте приложение полностью и откройте заново из чата с ботом.';
     } else if (result.error === 'device_limit_reached') {
       // Не сбой сети — осознанный отказ (максимум подписок уже занят).
       // Деньги не списаны, объясняем причину и что делать.
