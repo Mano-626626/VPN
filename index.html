@@ -959,6 +959,7 @@
      "осталось...". Без званий/статусов (убраны по решению владельца) и
      без прогресс-баров — спокойный вид, просто список. */
   .achv-list{ display:flex; flex-direction:column; gap:8px; }
+  .achv-view-title{ font-size:15px; font-weight:700; margin:4px 0 12px; }
   .achv-item{ display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.04); border-radius:12px; padding:10px 12px; }
   .achv-item.locked{ opacity:0.4; }
   .achv-item .achv-emoji{ font-size:16px; }
@@ -1383,13 +1384,8 @@
        backend, acc.achievements === null до первого значка). Нигде
        заранее не анонсируется — блок физически отсутствует в разметке
        смысла (display:none по умолчанию), не "0 из 7". -->
-  <div class="ref-card" id="achievementsCard" style="display:none; margin-top:22px;">
-    <div class="ref-head">
-      <span class="ref-icon">🏅</span>
-      <span class="ref-title">Достижения</span>
-    </div>
-    <div class="achv-list" id="achievementsList"></div>
-  </div>
+  <!-- 2026-09-27: карточка "Достижения" убрана с главного экрана по решению владельца — теперь
+       пункт "Ваши достижения" в меню (правый верхний угол), см. #menuGoAchievements / #menuAchievementsView. -->
 
   </div><!-- /#appMainA -->
 
@@ -1646,10 +1642,19 @@
   <div class="sheet-panel">
     <div class="sheet-grabber"></div>
     <div id="menuRootView">
+      <button class="sheet-item" id="menuGoAchievements" style="display:none;">Ваши достижения<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
       <button class="sheet-item" data-doc="about">О сервисе<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
       <button class="sheet-item" id="menuGoTariffs">Тарифы<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
       <button class="sheet-item" id="menuGoSupport">Поддержка<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
       <button class="sheet-item" id="menuGoDocs">Документы<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+    </div>
+    <div id="menuAchievementsView" style="display:none;">
+      <button class="sheet-back" id="menuAchievementsBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        Меню
+      </button>
+      <div class="achv-view-title">🏅 Ваши достижения</div>
+      <div class="achv-list" id="achievementsList"></div>
     </div>
     <div id="menuDocsView" style="display:none;">
       <button class="sheet-back" id="menuDocsBack">
@@ -3871,10 +3876,12 @@
   // item.hint ("осталось..."). Званий/статусов нет — убраны по решению
   // владельца, только список значков.
   function renderAchievementsWidget(acc) {
-    const card = document.getElementById('achievementsCard');
+    // Пункт меню "Ваши достижения" (2026-09-27) показывается ТОЛЬКО когда у человека уже есть
+    // хотя бы один значок (acc.achievements !== null) — раньше об этом нигде не анонсируем.
+    const menuItem = document.getElementById('menuGoAchievements');
     const a = acc.achievements;
-    if (!a) { card.style.display = 'none'; return; }
-    card.style.display = '';
+    if (!a) { if (menuItem) menuItem.style.display = 'none'; return; }
+    if (menuItem) menuItem.style.display = '';
 
     const listEl = document.getElementById('achievementsList');
     listEl.innerHTML = '';
@@ -4203,6 +4210,7 @@
     function openMenu() {
       document.getElementById('menuRootView').style.display = '';
       document.getElementById('menuDocsView').style.display = 'none';
+      const achView = document.getElementById('menuAchievementsView'); if (achView) achView.style.display = 'none';
       document.getElementById('menuOverlay').classList.add('open');
     }
     function closeMenu() {
@@ -4215,6 +4223,14 @@
     document.getElementById('menuGoDocs')?.addEventListener('click', () => {
       document.getElementById('menuRootView').style.display = 'none';
       document.getElementById('menuDocsView').style.display = '';
+    });
+    document.getElementById('menuGoAchievements')?.addEventListener('click', () => {
+      document.getElementById('menuRootView').style.display = 'none';
+      document.getElementById('menuAchievementsView').style.display = '';
+    });
+    document.getElementById('menuAchievementsBack')?.addEventListener('click', () => {
+      document.getElementById('menuRootView').style.display = '';
+      document.getElementById('menuAchievementsView').style.display = 'none';
     });
     document.getElementById('menuDocsBack')?.addEventListener('click', () => {
       document.getElementById('menuRootView').style.display = '';
