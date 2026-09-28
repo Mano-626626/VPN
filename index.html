@@ -3807,7 +3807,18 @@
       const res = await fetch(CREATE_PAYMENT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg?.initData || '', amountRub, planDays: topUpForPlanDays || undefined }),
+        // protocol/country — только для того, чтобы backend знал, ЧТО
+        // именно покупалось, если понадобится досрочно (без клиента)
+        // довести платёж до подписки — см. autoCompleteStuckPurchases()
+        // в server.js (2026-09-28, серверная подстраховка на случай,
+        // если сам Mini App опять промолчит после оплаты).
+        body: JSON.stringify({
+          initData: tg?.initData || '',
+          amountRub,
+          planDays: topUpForPlanDays || undefined,
+          protocol: topUpForPlanDays ? currentProtocol : undefined,
+          country: (topUpForPlanDays && currentProtocol === 'amnezia') ? selectedAmneziaCountry : undefined,
+        }),
       });
       try { data = await res.json(); } catch { data = null; }
       if (!res.ok || !data || !data.ok) {
