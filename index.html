@@ -188,27 +188,12 @@
   .key-card.locked .key-lock-overlay{ display:flex; }
   .key-lock-overlay svg{ width:15px; height:15px; flex-shrink:0; }
 
-  /* ---------- Карточка "Устройства" временно отключена (2026-09-19) ----------
-     По просьбе владельца — счётчик устройств пока не должен вводить
-     людей в заблуждение (сама механика лимита работает, но какая-то
-     смежная часть — нет). Значение и полоска замазаны blur'ом (не
-     просто скрыты), поверх — понятная надпись, подпись карточки
-     ("Устройства") остаётся видна, чтобы было ясно, что именно
-     отключено. Показывается ТОЛЬКО когда на #devicesCard стоит класс
-     .devices-disabled — обычным пользователям без этого класса ничего
-     не меняется. */
-  #devicesCard{ position:relative; }
-  #devicesCard.devices-disabled .overview-value,
-  #devicesCard.devices-disabled .devices-bar{
-    filter:blur(6px); user-select:none;
-  }
-  .devices-disabled-overlay{
-    display:none; align-items:center; justify-content:center;
-    position:absolute; inset:0; border-radius:14px;
-    background:rgba(10,10,16,0.55); backdrop-filter:blur(2px);
-    font-size:11.5px; font-weight:700; color:#fff; text-align:center; padding:0 12px;
-  }
-  #devicesCard.devices-disabled .devices-disabled-overlay{ display:flex; }
+  /* Лимит устройств отключён совсем (2026-10-03, см. CLAUDE.md) —
+     карточка "Устройства" теперь просто статичный текст "Без
+     ограничений", без счётчика/полоски/блюра. Старый механизм
+     временного отключения (blur + оверлей "Временно не работает",
+     2026-09-19) убран вместе с ним — был нужен только пока лимит
+     реально действовал. */
   .copy-btn{
     flex-shrink:0; width:34px; height:34px; border-radius:10px; border:none; cursor:pointer;
     background:linear-gradient(135deg, var(--accent-a), var(--accent-b));
@@ -1261,7 +1246,7 @@
         <div class="status-pill-active"><i></i>Подключение активно</div>
         <div class="status-line">Подписка до <b id="subUntilDate">12 августа</b></div>
         <div class="status-line">Тариф: <b id="subPlanName">3 месяца</b></div>
-        <div class="status-devices" id="devicesUsedText">2 из 3 устройств</div>
+        <div class="status-devices" id="devicesUsedText">Работает на всех ваших устройствах</div>
       </div>
     </div>
   </div>
@@ -1273,11 +1258,9 @@
       <button class="overview-action" id="topUpBtn">Пополнить</button>
       <button class="overview-action" id="renewBtn" style="margin-top:8px; display:none; background:linear-gradient(135deg,#22c55e,#16a34a);">Продлить</button>
     </div>
-    <div class="overview-card devices-disabled" id="devicesCard">
+    <div class="overview-card" id="devicesCard">
       <div class="overview-label">Устройства</div>
-      <div class="overview-value"><span id="devicesUsedNum">2</span><span class="overview-unit">/3</span></div>
-      <div class="devices-bar"><span id="devicesBarFill"></span></div>
-      <div class="devices-disabled-overlay">Временно не работает</div>
+      <div class="overview-value" style="font-size:16px; line-height:1.3;">Без ограничений</div>
     </div>
   </div>
 
@@ -2560,15 +2543,15 @@
     renderDaysRing(proto.daysLeft || 0, proto.totalDays || 0);
     document.getElementById('subUntilDate').textContent = proto.subUntilLabel || '—';
     document.getElementById('subPlanName').textContent = proto.planName || '—';
-    document.getElementById('devicesUsedText').textContent = `${proto.devicesUsed || 0} из ${acc.devicesLimit || 0} устройств`;
+    // Лимит устройств отключён (2026-10-03, см. CLAUDE.md) — текст
+    // статичный, числа больше не показываем ни здесь, ни в карточке
+    // "Устройства" (overview-grid) ниже.
+    document.getElementById('devicesUsedText').textContent = 'Работает на всех ваших устройствах';
     // Баланс и реферальная система — ОБЩИЕ на весь аккаунт, не сбрасываются
     // и не меняются при переключении протокола, только дни/тариф/ключ.
     animateBalanceUpdate(acc.balanceRub || 0);
     currentBalance = acc.balanceRub || 0; // синхронизируем локальный счётчик с настоящим значением
     updatePayButtonLabel(); // цвет кнопки "Оплатить" зависит от баланса — обновляем при каждом изменении
-    document.getElementById('devicesUsedNum').textContent = proto.devicesUsed || 0;
-    const pct = acc.devicesLimit > 0 ? Math.round(((proto.devicesUsed || 0) / acc.devicesLimit) * 100) : 0;
-    document.getElementById('devicesBarFill').style.width = pct + '%';
 
     // Кнопка "Продлить" показывается только если backend знает, какой
     // именно тариф у пользователя последний раз оплачен В ТЕКУЩЕМ
