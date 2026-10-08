@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Тест ссылок — Happ / INCY</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    color-scheme: light dark;
+  }
+  body {
+    margin: 0;
+    padding: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--tg-theme-bg-color, #0e1420);
+    color: var(--tg-theme-text-color, #ffffff);
+  }
+  h1 {
+    font-size: 18px;
+    margin: 0 0 4px;
+  }
+  p.sub {
+    color: var(--tg-theme-hint-color, #8a93a8);
+    font-size: 13px;
+    margin: 0 0 18px;
+  }
+  h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--tg-theme-hint-color, #8a93a8);
+    margin: 22px 0 8px;
+  }
+  button.variant {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--tg-theme-section-separator-color, #2a3140);
+    border-radius: 10px;
+    background: var(--tg-theme-secondary-bg-color, #161d2b);
+    color: var(--tg-theme-text-color, #ffffff);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button.variant:active {
+    opacity: 0.6;
+  }
+  button.variant .label {
+    font-weight: 600;
+  }
+  button.variant .url {
+    display: block;
+    font-size: 11px;
+    color: var(--tg-theme-hint-color, #8a93a8);
+    margin-top: 3px;
+    word-break: break-all;
+  }
+  #log {
+    margin-top: 24px;
+    padding: 10px;
+    border-radius: 10px;
+    background: var(--tg-theme-secondary-bg-color, #161d2b);
+    font-size: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  #log div {
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(128,128,128,0.15);
+  }
+</style>
+</head>
+<body>
+  <h1>Тест ссылок «добавить подписку»</h1>
+  <p class="sub">Жми по очереди, после каждой — вернись в Telegram (или в приложение, если открылось) и скажи, что произошло. Все кнопки открывают через <code>Telegram.WebApp.openLink()</code>, кроме двух последних (помечены отдельно).</p>
+
+  <h2>Happ</h2>
+  <div id="happ-buttons"></div>
+
+  <h2>INCY</h2>
+  <div id="incy-buttons"></div>
+
+  <h2>Доп. вариант (не через openLink, прямая навигация)</h2>
+  <div id="raw-buttons"></div>
+
+  <div id="log"></div>
+
+<script>
+  const SUB_URL = 'https://de.startyi.online/sub/4S50-wIQ5gAD2Z4nS0FbTvPaWPSLuyhg';
+  const SUB_ENC = encodeURIComponent(SUB_URL);
+  const SUB_B64 = btoa(SUB_URL).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  function log(msg) {
+    const el = document.getElementById('log');
+    const row = document.createElement('div');
+    const t = new Date().toLocaleTimeString('ru-RU');
+    row.textContent = `[${t}] ${msg}`;
+    el.prepend(row);
+  }
+
+  const happVariants = [
+    ['1. happ://add/<адрес>', `happ://add/${SUB_URL}`],
+    ['2. happ://add/<адрес, urlencode>', `happ://add/${SUB_ENC}`],
+    ['3. happ://add/<адрес, base64url>', `happ://add/${SUB_B64}`],
+    ['4. happ://install-config?url=<адрес>', `happ://install-config?url=${SUB_ENC}`],
+    ['5. happ://import/<адрес, urlencode>', `happ://import/${SUB_ENC}`],
+  ];
+
+  const incyVariants = [
+    ['6. incy://add/<адрес>', `incy://add/${SUB_URL}`],
+    ['7. incy://add/<адрес, urlencode>', `incy://add/${SUB_ENC}`],
+    ['8. incy://add/<адрес, base64url>', `incy://add/${SUB_B64}`],
+    ['9. incy://import/<адрес, urlencode>', `incy://import/${SUB_ENC}`],
+    ['10. incy://install-config?url=<адрес>', `incy://install-config?url=${SUB_ENC}`],
+  ];
+
+  const rawVariants = [
+    ['11. happ://add/<адрес> — БЕЗ openLink, location.href', `happ://add/${SUB_URL}`],
+    ['12. incy://add/<адрес> — БЕЗ openLink, location.href', `incy://add/${SUB_URL}`],
+  ];
+
+  function makeButton(label, url, useOpenLink) {
+    const btn = document.createElement('button');
+    btn.className = 'variant';
+    btn.innerHTML = `<span class="label">${label}</span><span class="url">${url}</span>`;
+    btn.addEventListener('click', () => {
+      btn.style.opacity = '0.5';
+      setTimeout(() => { btn.style.opacity = '1'; }, 200);
+      log(`Нажато: ${label}`);
+      try {
+        if (useOpenLink && tg && tg.openLink) {
+          tg.openLink(url);
+          log('→ вызван Telegram.WebApp.openLink()');
+        } else {
+          window.location.href = url;
+          log('→ вызван location.href (прямая навигация)');
+        }
+      } catch (e) {
+        log('ОШИБКА: ' + e.message);
+      }
+    });
+    return btn;
+  }
+
+  const happDiv = document.getElementById('happ-buttons');
+  happVariants.forEach(([label, url]) => happDiv.appendChild(makeButton(label, url, true)));
+
+  const incyDiv = document.getElementById('incy-buttons');
+  incyVariants.forEach(([label, url]) => incyDiv.appendChild(makeButton(label, url, true)));
+
+  const rawDiv = document.getElementById('raw-buttons');
+  rawVariants.forEach(([label, url]) => rawDiv.appendChild(makeButton(label, url, false)));
+
+  log('Страница загружена. tg.WebApp доступен: ' + (tg ? 'да' : 'НЕТ — открыто не как Mini App!'));
+  if (tg) log('Платформа: ' + tg.platform + ', версия: ' + tg.version);
+</script>
+</body>
+</html>
