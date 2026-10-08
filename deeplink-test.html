@@ -84,6 +84,9 @@
   <h2>INCY</h2>
   <div id="incy-buttons"></div>
 
+  <h2>HTTPS-обход (промежуточная страница, если прямые ссылки не работают)</h2>
+  <div id="redirect-buttons"></div>
+
   <h2>Доп. вариант (не через openLink, прямая навигация)</h2>
   <div id="raw-buttons"></div>
 
@@ -121,6 +124,11 @@
     ['10. incy://install-config?url=<адрес>', `incy://install-config?url=${SUB_ENC}`],
   ];
 
+  const redirectVariants = [
+    ['13. HTTPS-обход → happ://add/<адрес>', `https://de.startyi.online/open/happ?sub=${SUB_ENC}`],
+    ['14. HTTPS-обход → incy://add/<адрес>', `https://de.startyi.online/open/incy?sub=${SUB_ENC}`],
+  ];
+
   const rawVariants = [
     ['11. happ://add/<адрес> — БЕЗ openLink, location.href', `happ://add/${SUB_URL}`],
     ['12. incy://add/<адрес> — БЕЗ openLink, location.href', `incy://add/${SUB_URL}`],
@@ -136,8 +144,8 @@
       log(`Нажато: ${label}`);
       try {
         if (useOpenLink && tg && tg.openLink) {
-          tg.openLink(url);
-          log('→ вызван Telegram.WebApp.openLink()');
+          tg.openLink(url, { try_instant_view: false });
+          log('→ вызван Telegram.WebApp.openLink() c try_instant_view:false (гарантирует внешний браузер, не Instant View)');
         } else {
           window.location.href = url;
           log('→ вызван location.href (прямая навигация)');
@@ -154,6 +162,9 @@
 
   const incyDiv = document.getElementById('incy-buttons');
   incyVariants.forEach(([label, url]) => incyDiv.appendChild(makeButton(label, url, true)));
+
+  const redirectDiv = document.getElementById('redirect-buttons');
+  redirectVariants.forEach(([label, url]) => redirectDiv.appendChild(makeButton(label, url, true)));
 
   const rawDiv = document.getElementById('raw-buttons');
   rawVariants.forEach(([label, url]) => rawDiv.appendChild(makeButton(label, url, false)));
