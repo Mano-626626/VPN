@@ -76,7 +76,15 @@
 </head>
 <body>
   <h1>Тест ссылок «добавить подписку»</h1>
-  <p class="sub">Жми по очереди, после каждой — вернись в Telegram (или в приложение, если открылось) и скажи, что произошло. Все кнопки открывают через <code>Telegram.WebApp.openLink()</code>, кроме двух последних (помечены отдельно).</p>
+  <p class="sub">Жми по очереди, после каждой — вернись в Telegram (или в приложение, если открылось) и скажи, что произошло.</p>
+
+  <div id="diag" style="padding:10px;border-radius:10px;background:var(--tg-theme-secondary-bg-color,#161d2b);font-size:12px;margin-bottom:16px;">загрузка...</div>
+
+  <h2>0. Базовая диагностика (сначала эти 4)</h2>
+  <div id="diag-buttons"></div>
+  <p id="static-anchor-wrap" style="margin:0 0 16px;">
+    <a id="static-anchor" class="variant" style="display:block;text-align:left;padding:12px 14px;border:1px solid var(--tg-theme-section-separator-color,#2a3140);border-radius:10px;background:var(--tg-theme-secondary-bg-color,#161d2b);color:var(--tg-theme-text-color,#fff);text-decoration:none;font-size:14px;" href="https://www.google.com/" target="_blank" rel="noopener">0.4. Обычная ссылка &lt;a href&gt; БЕЗ JS вообще (google.com)</a>
+  </p>
 
   <h2>Happ</h2>
   <div id="happ-buttons"></div>
@@ -134,7 +142,8 @@
     ['12. incy://add/<адрес> — БЕЗ openLink, location.href', `incy://add/${SUB_URL}`],
   ];
 
-  function makeButton(label, url, useOpenLink) {
+  // mode: 'openLink' | 'openLink-noopts' | 'window.open' | 'location.href'
+  function makeButton(label, url, mode) {
     const btn = document.createElement('button');
     btn.className = 'variant';
     btn.innerHTML = `<span class="label">${label}</span><span class="url">${url}</span>`;
@@ -143,12 +152,18 @@
       setTimeout(() => { btn.style.opacity = '1'; }, 200);
       log(`Нажато: ${label}`);
       try {
-        if (useOpenLink && tg && tg.openLink) {
+        if (mode === 'openLink') {
           tg.openLink(url, { try_instant_view: false });
-          log('→ вызван Telegram.WebApp.openLink() c try_instant_view:false (гарантирует внешний браузер, не Instant View)');
+          log('→ tg.openLink(url, {try_instant_view:false})');
+        } else if (mode === 'openLink-noopts') {
+          tg.openLink(url);
+          log('→ tg.openLink(url) БЕЗ второго аргумента');
+        } else if (mode === 'window.open') {
+          const w = window.open(url, '_blank');
+          log('→ window.open() вернул: ' + (w ? 'объект окна' : 'null/undefined'));
         } else {
           window.location.href = url;
-          log('→ вызван location.href (прямая навигация)');
+          log('→ location.href (прямая навигация)');
         }
       } catch (e) {
         log('ОШИБКА: ' + e.message);
@@ -157,19 +172,35 @@
     return btn;
   }
 
+  const diagVariants = [
+    ['0.1. tg.openLink(url) БЕЗ опций, google.com', 'https://www.google.com/', 'openLink-noopts'],
+    ['0.2. tg.openLink(url, {try_instant_view:false}), google.com', 'https://www.google.com/', 'openLink'],
+    ['0.3. window.open(url), google.com', 'https://www.google.com/', 'window.open'],
+  ];
+  const diagDiv = document.getElementById('diag-buttons');
+  diagVariants.forEach(([label, url, mode]) => diagDiv.appendChild(makeButton(label, url, mode)));
+
+  document.getElementById('static-anchor').addEventListener('click', () => log('Нажато: 0.4. обычная <a href> без JS (это сработает всегда, если вообще можно куда-то перейти)'));
+
   const happDiv = document.getElementById('happ-buttons');
-  happVariants.forEach(([label, url]) => happDiv.appendChild(makeButton(label, url, true)));
+  happVariants.forEach(([label, url]) => happDiv.appendChild(makeButton(label, url, 'openLink')));
 
   const incyDiv = document.getElementById('incy-buttons');
-  incyVariants.forEach(([label, url]) => incyDiv.appendChild(makeButton(label, url, true)));
+  incyVariants.forEach(([label, url]) => incyDiv.appendChild(makeButton(label, url, 'openLink')));
 
   const redirectDiv = document.getElementById('redirect-buttons');
-  redirectVariants.forEach(([label, url]) => redirectDiv.appendChild(makeButton(label, url, true)));
+  redirectVariants.forEach(([label, url]) => redirectDiv.appendChild(makeButton(label, url, 'openLink')));
 
   const rawDiv = document.getElementById('raw-buttons');
-  rawVariants.forEach(([label, url]) => rawDiv.appendChild(makeButton(label, url, false)));
+  rawVariants.forEach(([label, url]) => rawDiv.appendChild(makeButton(label, url, 'location.href')));
 
-  log('Страница загружена. tg.WebApp доступен: ' + (tg ? 'да' : 'НЕТ — открыто не как Mini App!'));
+  const diagEl = document.getElementById('diag');
+  if (!tg) {
+    diagEl.textContent = '⚠️ tg.WebApp НЕДОСТУПЕН — страница открыта не как Mini App (возможно, обычной ссылкой, а не кнопкой web_app).';
+  } else {
+    diagEl.innerHTML = `tg.WebApp: есть<br>platform: ${tg.platform}<br>version: ${tg.version}<br>openLink существует: ${typeof tg.openLink === 'function'}<br>isVersionAtLeast(6.1): ${tg.isVersionAtLeast ? tg.isVersionAtLeast('6.1') : 'метода нет'}`;
+  }
+  log('Страница загружена. tg.WebApp доступен: ' + (tg ? 'да' : 'НЕТ'));
   if (tg) log('Платформа: ' + tg.platform + ', версия: ' + tg.version);
 </script>
 </body>
