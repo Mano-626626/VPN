@@ -267,7 +267,13 @@
   .sub-import-hint span{ font-size:11.5px; color:var(--tg-hint); line-height:1.5; }
 
   /* ---------- Steps ---------- */
-  .section-title{ font-size:14px; font-weight:700; margin:22px 2px 12px; }
+  .section-title{
+    font-size:12.5px; font-weight:700; margin:28px 2px 12px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--tg-hint);
+    display:flex; align-items:center; gap:7px;
+  }
+  .section-title::before{ content:''; width:3px; height:13px; border-radius:2px; background:var(--accent-a); display:inline-block; }
+  #sectionHome{ margin-top:4px; }
   .step{
     display:flex; gap:12px; align-items:flex-start; padding:14px; border-radius:20px;
     background:var(--card); border:1px solid var(--border); margin-bottom:10px;
@@ -473,6 +479,20 @@
     0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,0.35); }
     50%{ box-shadow:0 0 0 8px rgba(239,68,68,0); }
   }
+
+  /* Добавление подписки одним касанием (2026-10-08) — спокойный стиль,
+     без пульсации (та у .connect-cta намеренно тревожная, для другой
+     задачи — "обратите внимание, не подключено"), это обычное действие. */
+  .one-tap-add{ margin:18px 0 4px; }
+  .one-tap-btn{
+    width:100%; display:flex; align-items:center; justify-content:center; gap:9px;
+    padding:14px; border-radius:var(--radius-lg); cursor:pointer;
+    font-size:14.5px; font-weight:700; border:none; color:var(--tg-button-text);
+    transition:transform .2s ease, opacity .2s ease;
+  }
+  .one-tap-btn:active{ transform:scale(0.97); opacity:0.85; }
+  .one-tap-btn.primary{ background:var(--accent-a); }
+  .one-tap-btn.secondary{ background:var(--tg-secondary-bg); border:1.5px solid var(--border); color:var(--tg-text); }
   @media (prefers-reduced-motion: reduce){ .connect-cta{ animation:none; } }
 
   .trust-item{
@@ -1151,6 +1171,7 @@
        (в т.ч. позиционированные fixed вещи вроде модалок оплаты —
        display:none на родителе прячет их независимо от position). -->
   <div id="appMainA">
+  <div class="section-title" id="sectionHome">Главная</div>
   <!-- Пробный период Happ — намеренно первый блок содержимого, выше
        переключателя протокола и карточки ключа: это главный призыв к
        действию для нового человека без подписки. Виден только когда
@@ -1186,6 +1207,7 @@
   </div>
 
   <div class="protocol-label">Способ подключения</div>
+  <div class="section-title" id="sectionSubscription">Подписка и ключ</div>
   <div class="protocol-toggle" id="protocolToggle">
     <div class="protocol-toggle-thumb" id="protocolToggleThumb"></div>
     <button type="button" class="protocol-toggle-btn active" data-protocol="happ" id="protocolBtnHapp">Подписка (Happ, INCY)</button>
@@ -1264,6 +1286,7 @@
     </div>
   </div>
 
+  <div class="section-title" id="sectionBalance">Баланс и пополнение</div>
   <div class="overview-grid">
     <div class="overview-card">
       <div class="overview-label">Баланс</div>
@@ -1282,6 +1305,7 @@
     Как подключиться
   </button>
 
+  <div class="section-title" id="sectionReferral">Реферальная система</div>
   <div class="ref-card" style="margin-top:22px;">
     <div class="ref-head"><span class="ref-icon">🎁</span><span class="ref-title">Пригласите друзей</span></div>
     <div class="ref-sub">Пригласите друзей и получите <b>50 ₽ на баланс</b> за каждого. Пригласите 3 друга — и сможете купить подписку на месяц.</div>
@@ -1391,6 +1415,7 @@
 
   </div><!-- /#appMainA -->
 
+  <div class="section-title" id="sectionSupport">Поддержка</div>
   <div class="support-card">
     <div class="support-row">
       <span class="support-icon">🆘</span>
@@ -1413,7 +1438,7 @@
   </div>
 
   <div id="appMainB">
-  <div class="section-title">Тариф</div>
+  <div class="section-title" id="sectionTariffs">Тарифы</div>
   <div class="plan-list" id="planList">
     <div class="plan selected" data-plan="1" data-price="150" onclick="selectPlan(this)">
       <div>
@@ -1459,6 +1484,7 @@
     </div>
   </div>
 
+  <div class="section-title" id="sectionPromo">Промокод</div>
   <div class="promo-box" id="promoBox">
     <div class="promo-input-row">
       <input type="text" id="promoInput" placeholder="Промокод (необязательно)" autocomplete="off" autocapitalize="characters" spellcheck="false">
@@ -1473,7 +1499,7 @@
 
   <div class="pay-guarantee">🛡 Оплата защищена. Отмена в любой момент.</div>
 
-  <div class="section-title" id="connectSteps">Как подключиться</div>
+  <div class="section-title" id="connectSteps">Как подключить</div>
 
   <div class="step">
     <div class="step-num">1</div>
@@ -1522,6 +1548,20 @@
 
       <div class="store-region-warning" id="storeRegionWarning">⚠️ В App Store скачать можно только со сменённым регионом аккаунта (не Россия) — с российским регионом приложения AmneziaVPN в App Store нет.</div>
     </div>
+  </div>
+
+  <!-- Добавление подписки одним касанием (2026-10-08) — только у Happ,
+       через проверенную https-страницу-посредник (/open/happ, /open/incy
+       на backend), т.к. прямые happ://add/incy:// не открываются из
+       Telegram WebApp вообще (известный баг Telegram, см. CLAUDE.md).
+       Открывается через tg.openLink(url, {try_instant_view:false}) —
+       Telegram нормально открывает https-ссылку во внешнем браузере,
+       а он уже понимает кастомную схему приложения. Ссылка и "скопировать"
+       ниже — запасной путь, если по какой-то причине не сработает. -->
+  <div class="one-tap-add" id="oneTapAdd" style="display:none;">
+    <button type="button" class="one-tap-btn primary" id="addToHappBtn" style="margin-bottom:8px;">Добавить в Happ одним касанием</button>
+    <button type="button" class="one-tap-btn secondary" id="addToIncyBtn">Добавить в INCY одним касанием</button>
+    <div class="sub-import-hint" style="margin-top:10px;">Не открылось само? Ссылка на подписку всегда доступна выше — скопируйте её кнопкой рядом с ключом и вставьте в приложение вручную.</div>
   </div>
 
   <div class="step">
@@ -1648,10 +1688,16 @@
   <div class="sheet-panel">
     <div class="sheet-grabber"></div>
     <div id="menuRootView">
+      <button class="sheet-item" id="menuGoHome">Главная<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="sheet-item" id="menuGoSubscription">Подписка и ключ<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="sheet-item" id="menuGoTariffs">Тарифы<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="sheet-item" id="menuGoBalance">Баланс и пополнение<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="sheet-item" id="menuGoReferral">Реферальная система<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="sheet-item" id="menuGoPromo">Промокод<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="sheet-item" id="menuGoConnect">Как подключить<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="sheet-item" id="menuGoSupport">Поддержка<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
       <button class="sheet-item" id="menuGoAchievements" style="display:none;">Ваши достижения<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
       <button class="sheet-item" data-doc="about">О сервисе<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
-      <button class="sheet-item" id="menuGoTariffs">Тарифы<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
-      <button class="sheet-item" id="menuGoSupport">Поддержка<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
       <button class="sheet-item" id="menuGoDocs">Документы<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
     </div>
     <div id="menuAchievementsView" style="display:none;">
@@ -2939,6 +2985,32 @@
 
   document.getElementById('copyBtn').addEventListener('click', copyKey);
 
+  // ---------- Добавить в Happ/INCY одним касанием (2026-10-08) ----------
+  // Та же проверка "ключ ещё не готов", что у copyKey() выше — не даём
+  // открыть ссылку-посредник с пустым/демо-значением. Открываем через
+  // Telegram.WebApp.openLink(url, {try_instant_view:false}) — так
+  // гарантированно уходит во внешний браузер, не в Instant View (по
+  // документации Telegram это единственная управляемая опция метода),
+  // а обычный браузер уже понимает кастомную схему happ://incy://.
+  function openOneTapAdd(appKey) {
+    if (keyCardEl.classList.contains('locked')) {
+      document.getElementById('toast').textContent = 'Ключ ещё не готов — подождите или обновите страницу';
+      showCopiedToast();
+      tg?.HapticFeedback?.notificationOccurred('warning');
+      return;
+    }
+    const sub = keyValueEl.textContent;
+    const url = `https://de.startyi.online/open/${appKey}?sub=${encodeURIComponent(sub)}`;
+    tg?.HapticFeedback?.impactOccurred('light');
+    if (tg && tg.openLink) {
+      tg.openLink(url, { try_instant_view: false });
+    } else {
+      window.location.href = url;
+    }
+  }
+  document.getElementById('addToHappBtn')?.addEventListener('click', () => openOneTapAdd('happ'));
+  document.getElementById('addToIncyBtn')?.addEventListener('click', () => openOneTapAdd('incy'));
+
   // ---------- QR toggle ----------
   // Раньше при заблокированном (неоплаченном) ключе клик уводил
   // скроллом вниз к тарифам — неожиданно и сбивало с места, где человек
@@ -2995,6 +3067,9 @@
     // ссылки по-прежнему собираются из DOWNLOAD_LINKS.amnezia.
     document.getElementById('storeLinksHapp').style.display = protocol === 'happ' ? '' : 'none';
     document.getElementById('storeLinksAmnezia').style.display = protocol === 'happ' ? 'none' : '';
+    // Добавление одним касанием — только у Happ (ссылка-подписка есть
+    // только у этого протокола, см. комментарий у renderKey выше).
+    document.getElementById('oneTapAdd').style.display = protocol === 'happ' ? '' : 'none';
     if (protocol !== 'happ') {
       document.getElementById('amneziaIosLink').href = cfg.ios;
       document.getElementById('amneziaAndroidLink').href = cfg.android;
@@ -4381,6 +4456,33 @@
     document.getElementById('menuGoSupport')?.addEventListener('click', () => {
       closeMenu();
       document.querySelector('.support-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    // Остальные пункты меню (2026-10-08, редизайн) — тот же паттерн
+    // closeMenu() + scrollIntoView на уже существующий section-title,
+    // ничего в логике разделов не меняет, просто даёт прямой переход.
+    document.getElementById('menuGoHome')?.addEventListener('click', () => {
+      closeMenu();
+      document.getElementById('sectionHome')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('menuGoSubscription')?.addEventListener('click', () => {
+      closeMenu();
+      document.getElementById('sectionSubscription')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('menuGoBalance')?.addEventListener('click', () => {
+      closeMenu();
+      document.getElementById('sectionBalance')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('menuGoReferral')?.addEventListener('click', () => {
+      closeMenu();
+      document.getElementById('sectionReferral')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('menuGoPromo')?.addEventListener('click', () => {
+      closeMenu();
+      document.getElementById('sectionPromo')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('menuGoConnect')?.addEventListener('click', () => {
+      closeMenu();
+      document.getElementById('connectSteps')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     // ---------- Гейт согласия (Политика обработки ПД + Пользовательское соглашение) ----------
