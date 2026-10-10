@@ -187,6 +187,10 @@
   }
   .key-card.locked .key-lock-overlay{ display:flex; }
   .key-lock-overlay svg{ width:15px; height:15px; flex-shrink:0; }
+  /* Отдельное мягкое мерцание именно для "загрузка", не для "не оплачено" — чтобы было видно разницу на глаз. */
+  .key-card.loading .key-lock-overlay{ animation:loadingPulse 1.4s ease-in-out infinite; }
+  .key-card.loading .key-lock-overlay svg{ display:none; }
+  @keyframes loadingPulse{ 0%,100%{ opacity:0.55; } 50%{ opacity:0.95; } }
 
   /* Лимит устройств отключён совсем (2026-10-03, см. CLAUDE.md) —
      карточка "Устройства" теперь просто статичный текст "Без
@@ -1195,19 +1199,27 @@
 
   <div class="key-heading">ВАШ КЛЮЧ!</div>
 
-  <div class="key-card locked" id="keyCard">
+  <!-- 2026-10-10: состояние "locked" + "Ожидает оплаты"/"Ключ откроется
+       после оплаты" ЗДЕСЬ, в статичной разметке — это то, что видно ДО
+       первого ответа сервера, то есть на время ожидания initData/первого
+       запроса. Раньше это выглядело как настоящее "вы не оплатили" для
+       людей, которые давно оплатили — главная причина жалобы "приложение
+       пустое/сломано". Теперь — честная загрузка, JS подставит настоящее
+       состояние (разблокированный ключ ИЛИ честное "не оплачено"), как
+       только данные реально придут. -->
+  <div class="key-card locked loading" id="keyCard">
     <div class="key-label">
       <span>Ваш ключ</span>
-      <span class="key-status" id="keyStatus"><i></i>Ожидает оплаты</span>
+      <span class="key-status" id="keyStatus"><i></i>Загрузка…</span>
     </div>
     <div class="key-value-box">
-      <span class="key-value" id="keyValue">vless://demo-00000000-0000-0000-0000-000000000000@de.iuvpn.com:443?type=tcp&security=reality</span>
+      <span class="key-value" id="keyValue">—</span>
       <button class="copy-btn" id="copyBtn" aria-label="Копировать">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
       </button>
-      <div class="key-lock-overlay" id="keyLockOverlay" title="Ключ откроется после оплаты">
+      <div class="key-lock-overlay" id="keyLockOverlay" title="Загружаем ваши данные">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        Ключ откроется после оплаты
+        Загрузка…
       </div>
     </div>
     <div class="key-actions">
@@ -1756,6 +1768,33 @@
   window.addEventListener('error', (e) => handleUncaughtError('window.onerror', e.error || e.message));
   window.addEventListener('unhandledrejection', (e) => handleUncaughtError('unhandledrejection', e.reason));
 
+  // ============================================================
+  // Гонка при "холодном" старте (2026-10-10, реальный случай владельца,
+  // подтверждён по логам: на Telegram Desktop/Linux мост иногда не
+  // успевает передать initData к моменту, когда скрипт уже делает первый
+  // запрос — пустая initData ошибочно считалась "неверной подписью",
+  // приложение сдавалось после 3 мгновенных попыток. Это НЕ ошибка
+  // доступа, это "ещё не готово" — разные случаи, разная реакция.
+  //
+  // getInitData() — всегда сначала проверяет СЕЙЧАС (в норме, после
+  // первого успешного раза, initData уже на месте — просто мгновенно
+  // возвращает), и только если initData ПОКА пустая — ждёт с нарастающей
+  // паузой, а не сдаётся сразу. Не запоминает "неудачу" навсегда — если
+  // мост наконец прислал данные через полминуты, следующий же вызов это
+  // увидит и сработает нормально.
+  // ============================================================
+  async function getInitData(maxWaitMs = 8000) {
+    if (!tg) return '';
+    if (tg.initData) return tg.initData;
+    const start = Date.now();
+    let delay = 150;
+    while (!tg.initData && Date.now() - start < maxWaitMs) {
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(delay * 1.5, 1000);
+    }
+    return tg.initData || '';
+  }
+
   // Объявлены здесь, в самом начале, а не рядом с остальным кодом
   // рефералки ниже: renderReferralWidget() вызывается уже при самой
   // первой (плейсхолдер) отрисовке виджета аккаунта, ещё до того места
@@ -1903,7 +1942,7 @@
       // безобидная заглушка. AmneziaWG с 2026-09-19 продаётся по странам
       // отдельно — шлём реально выбранную в интерфейсе страну.
       const body = {
-        initData: tg?.initData || '',
+        initData: await getInitData(),
         country: currentProtocol === 'amnezia' ? selectedAmneziaCountry : 'germany',
         planName, protocol: currentProtocol,
       };
@@ -2044,7 +2083,7 @@
       const res = await fetch(REGEN_KEY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg?.initData || '', protocol: currentProtocol }),
+        body: JSON.stringify({ initData: await getInitData(), protocol: currentProtocol }),
       });
       let data;
       try { data = await res.json(); } catch { data = null; }
@@ -2095,7 +2134,7 @@
       const res = await fetch(TRIAL_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg?.initData || '' }),
+        body: JSON.stringify({ initData: await getInitData() }),
       });
       let data;
       try { data = await res.json(); } catch { data = null; }
@@ -2111,7 +2150,7 @@
       }
 
       renderKey(data.happUri, data.account?.happSubUrl || null);
-      keyCardEl.classList.remove('locked');
+      keyCardEl.classList.remove('locked'); keyCardEl.classList.remove('loading');
       keyStatusEl.innerHTML = '<i></i>Активен';
       keyStatusEl.style.color = '#4ade80';
       keyStatusEl.style.background = 'rgba(74,222,128,0.12)';
@@ -2133,9 +2172,12 @@
   // Ключ визуально размыт и недоступен для копирования, пока не оплачено.
   function lockKey() {
     keyCardEl.classList.add('locked');
+    keyCardEl.classList.remove('loading'); // это уже настоящий, подтверждённый ответ — не "загрузка"
     keyStatusEl.innerHTML = '<i></i>Ожидает оплаты';
     keyStatusEl.style.color = 'var(--tg-hint)';
     keyStatusEl.style.background = 'rgba(255,255,255,0.06)';
+    const overlay = document.getElementById('keyLockOverlay');
+    if (overlay) overlay.textContent = 'Ключ откроется после оплаты';
   }
 
   // Вызывается и после успешной оплаты (с planName — настоящая покупка),
@@ -2147,7 +2189,7 @@
     const result = await fetchRealKey(planName, promoCode, opts.confirmRepeat);
     if (result.ok) {
       renderKey(result.vpnUri, result.happSubUrl);
-      keyCardEl.classList.remove('locked');
+      keyCardEl.classList.remove('locked'); keyCardEl.classList.remove('loading');
       keyStatusEl.innerHTML = '<i></i>Активен';
       keyStatusEl.style.color = '#4ade80';
       keyStatusEl.style.background = 'rgba(74,222,128,0.12)';
@@ -2169,7 +2211,26 @@
     return result;
   }
 
-  lockKey(); // честное стартовое состояние — ключ ещё не оплачен
+  // 2026-10-10: раньше ЗДЕСЬ сразу вызывался lockKey() — то есть
+  // карточка ключа показывала "Ожидает оплаты" ДО того, как вообще
+  // начинался запрос к серверу, перекрывая честное "Загрузка…" из
+  // разметки. Для уже оплатившего человека (как и у владельца, когда
+  // initData приходила с опозданием) это и выглядело как "деньги
+  // пропали". Теперь карточка остаётся в состоянии "Загрузка…" до
+  // настоящего ответа — lockKey() вызывается ниже, только когда
+  // реально подтверждено, что подписки нет.
+  function showKeyLoadError() {
+    keyCardEl.classList.add('locked');
+    keyCardEl.classList.remove('loading');
+    keyStatusEl.innerHTML = '<i></i>Не удалось загрузить';
+    keyStatusEl.style.color = '#ef4444';
+    keyStatusEl.style.background = 'rgba(239,68,68,0.12)';
+    const overlay = document.getElementById('keyLockOverlay');
+    if (overlay) overlay.textContent = 'Не удалось загрузить — нажмите, чтобы попробовать снова';
+  }
+  document.getElementById('keyLockOverlay')?.addEventListener('click', () => {
+    if (keyStatusEl.textContent.includes('Не удалось загрузить')) refreshAccountWidget();
+  });
 
   // ============================================================
   // Реальный backend, не мок. Запрашивает сводку по аккаунту у того же
@@ -2200,12 +2261,20 @@
   // доступна. 3 попытки с растущей паузой закрывают почти все временные
   // сбои; если и это не помогло — виджет остаётся в честном нулевом
   // состоянии как и раньше, это не хуже прежнего поведения.
-  async function fetchAccountSummary(attempt = 1) {
+  // 2026-10-10: initData ждём ОДИН раз в самом начале, не на каждой из
+  // 3 попыток — иначе (найдено этим же тестированием) при подвисшем
+  // мосте получалось до 24+ секунд суммарного ожидания (3 попытки по
+  // 8с), прежде чем человек вообще увидел бы ошибку. Если initData не
+  // пришла за первое, полноценное ожидание — ждать её снова через
+  // секунду вряд ли поможет, дальнейшие попытки — уже про сетевые
+  // сбои, не про "мост ещё не готов".
+  async function fetchAccountSummary(attempt = 1, initDataCached = null) {
+    const initData = initDataCached !== null ? initDataCached : await getInitData();
     try {
       const res = await fetch(ACCOUNT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg?.initData || '', refId }),
+        body: JSON.stringify({ initData, refId }),
       });
       if (!res.ok) throw new Error('backend вернул ошибку: ' + res.status);
       return await res.json();
@@ -2213,7 +2282,7 @@
       console.error(`Не удалось получить сводку по аккаунту (попытка ${attempt}):`, err);
       if (attempt < 3) {
         await new Promise(r => setTimeout(r, attempt * 1000));
-        return fetchAccountSummary(attempt + 1);
+        return fetchAccountSummary(attempt + 1, initData);
       }
       return null; // виджет просто останется в честном нулевом состоянии
     }
@@ -2394,7 +2463,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          initData: tg?.initData || '',
+          initData: await getInitData(),
           protocol: currentProtocol,
           // AmneziaWG с 2026-09-19 продаётся по странам отдельно — backend
           // требует country для этого протокола (см. /miniapp/renew,
@@ -2790,15 +2859,22 @@
       // это настоящие данные, без единого объяснения, что что-то не
       // загрузилось. Теперь — честный баннер и кнопка "Попробовать снова".
       reportClientError('account-initial-load', new Error('fetchAccountSummary вернул null после всех попыток'));
-      showGlobalErrorBanner('Не удалось загрузить ваши данные. Показаны значения по умолчанию, не ваши настоящие.');
+      showGlobalErrorBanner('Не удалось загрузить ваши данные.');
+      showKeyLoadError(); // карточка ключа — честно "не удалось", не вечная "Загрузка…"
+      return;
     }
     // Если у пользователя уже есть оплаченные, ещё не истёкшие дни на
     // ТЕКУЩЕМ (стартовом — Happ) протоколе — ключ не должен требовать
     // повторной оплаты при каждой загрузке страницы. Разблокируем сразу,
-    // запросив тот же настоящий ключ.
+    // запросив тот же настоящий ключ. Если дней нет — честно показываем
+    // "Ожидает оплаты" (lockKey), а не оставляем карточку в "Загрузка…"
+    // навечно (2026-10-10 — раньше это решалось одним lockKey() ДО
+    // запроса, теперь — только после настоящего ответа).
     const startupProto = getProtoData(acc, currentProtocol);
     if (startupProto && startupProto.daysLeft > 0) {
       unlockKeyAfterPayment(undefined, undefined, { retryOnBusy: true }); // без planName — просто забираем уже активный ключ, не продлевая
+    } else {
+      lockKey();
     }
   });
 
@@ -3195,7 +3271,7 @@
         clearPromoAfterPurchase();
         document.getElementById('promoActivateRow').classList.remove('show');
         renderKey(result.vpnUri, result.happSubUrl);
-        keyCardEl.classList.remove('locked');
+        keyCardEl.classList.remove('locked'); keyCardEl.classList.remove('loading');
         keyStatusEl.innerHTML = '<i></i>Активен';
         keyStatusEl.style.color = '#4ade80';
         keyStatusEl.style.background = 'rgba(74,222,128,0.12)';
@@ -3269,7 +3345,7 @@
       const res = await fetch(PROMO_CHECK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg?.initData || '', code, protocol: currentProtocol }),
+        body: JSON.stringify({ initData: await getInitData(), code, protocol: currentProtocol }),
       });
       let data;
       try { data = await res.json(); } catch { data = null; }
@@ -3838,7 +3914,7 @@
     const poll = async () => {
       let statusData = null;
       try {
-        const url = `${PAYMENT_STATUS_URL}?initData=${encodeURIComponent(tg?.initData || '')}&paymentId=${encodeURIComponent(paymentId)}`;
+        const url = `${PAYMENT_STATUS_URL}?initData=${encodeURIComponent(await getInitData())}&paymentId=${encodeURIComponent(paymentId)}`;
         const res = await fetch(url);
         if (res.ok) statusData = await res.json();
       } catch (err) {
@@ -3886,7 +3962,7 @@
         // в server.js (2026-09-28, серверная подстраховка на случай,
         // если сам Mini App опять промолчит после оплаты).
         body: JSON.stringify({
-          initData: tg?.initData || '',
+          initData: await getInitData(),
           amountRub,
           planDays: topUpForPlanDays || undefined,
           protocol: topUpForPlanDays ? currentProtocol : undefined,
@@ -4128,7 +4204,7 @@
       const res = await fetch(PARTNER_PAYOUT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg?.initData || '' }),
+        body: JSON.stringify({ initData: await getInitData() }),
       });
       let data;
       try { data = await res.json(); } catch { data = null; }
@@ -4565,7 +4641,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            initData: tg?.initData || '',
+            initData: await getInitData(),
             acceptedTerms: true,
             acceptedPd: true,
             termsVersion: TERMS_VERSION,
